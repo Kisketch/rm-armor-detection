@@ -149,7 +149,7 @@ points = { left.bottom, left.top, right.top, right.bottom }
 
 `check_result` 检查：行数 = 视频帧数、帧号从 0 连续、每行可解析、`count` 与条目数一致、每块 4 点、坐标在画面内、四点面积非 0、`number` 在允许集合内；并输出有目标帧占比、最长全 0 段、相邻帧 count 最大跳变、数字分布。`--render-every N` 把 txt 里的点画回原视频（空帧也画），角点按顺序着色（0 红 / 1 绿 / 2 蓝 / 3 黄），左上角附 4 倍放大图。
 
-> 说明：任务书建议用 Python 写自检脚本，但本机未装 Python，所以用 C++ + OpenCV 实现了同样的检查，跟主程序一起由 CMake 构建，不需要额外依赖。
+> 说明：任务书建议用 Python 写自检脚本。本机的 `python` 命令只是 Microsoft Store 占位程序，也没有装 opencv-python，所以用 C++ + OpenCV 实现了同样的检查，跟主程序一起由 CMake 构建，评审复现时不需要额外装 Python 依赖。
 
 ## 相对模板的改动
 

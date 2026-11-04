@@ -1,5 +1,9 @@
 # 装甲板检测（RM 自瞄考核）
 
+[![build-and-smoke](https://github.com/Kisketch/rm-armor-detection/actions/workflows/ci.yml/badge.svg)](https://github.com/Kisketch/rm-armor-detection/actions/workflows/ci.yml)
+
+仓库：<https://github.com/Kisketch/rm-armor-detection>
+
 读取视频，检测敌方装甲板：灯条查找 → 装甲板匹配 → 数字识别，逐帧写入结果文件。
 
 - 输入：`video/3.avi`（2209 帧）、`video/4.avi`（3416 帧），1440×1080 @25fps

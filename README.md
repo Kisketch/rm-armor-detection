@@ -83,6 +83,8 @@ python3 tools/render_check.py 3.txt video/3.avi --every 125 --out verify
 python3 tools/render_check.py 4.txt video/4.avi --every 125 --out verify
 ```
 
+> 提交包按任务书要求不含视频：先把 `3.avi`/`4.avi` 放进 `video/` 再运行上面的命令。
+
 | 参数 | 说明 |
 | --- | --- |
 | `red` / `blue` | 敌方颜色，默认 `red` |

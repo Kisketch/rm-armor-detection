@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """把结果 txt 里的四点反渲染回原视频帧，生成人工抽检图。
 
+支持 canonical（默认格式）与 literal（--format literal）两种结果文件，默认按首行自动识别。
+
 用法:
     python3 tools/render_check.py <结果.txt> <视频> [--every N] [--frames 0,125,250] [--out verify]
+                                   [--format auto|canonical|literal]
 
 每个抽样帧保存为 <out>/<视频名>_f00000.png：
 - 绿框标出装甲板，角点按顺序着色（0 红=左下，1 绿=左上，2 蓝=右上，3 黄=右下）
@@ -32,6 +35,16 @@ ARMOR_RE = re.compile(
     r"\((?P<x3>-?\d+(?:\.\d+)?),(?P<y3>-?\d+(?:\.\d+)?)\)"
 )
 
+# literal 格式： "0，装甲板1: 3, points: (x,y),(x,y),(x,y),(x,y)"
+LITERAL_FRAME_RE = re.compile(r"^(?P<frame>\d+)(?P<rest>.*)$")
+LITERAL_ARMOR_RE = re.compile(
+    r"装甲板(?P<idx>\d+): (?P<number>[^,]+), points: "
+    r"\((?P<x0>-?\d+(?:\.\d+)?),(?P<y0>-?\d+(?:\.\d+)?)\),"
+    r"\((?P<x1>-?\d+(?:\.\d+)?),(?P<y1>-?\d+(?:\.\d+)?)\),"
+    r"\((?P<x2>-?\d+(?:\.\d+)?),(?P<y2>-?\d+(?:\.\d+)?)\),"
+    r"\((?P<x3>-?\d+(?:\.\d+)?),(?P<y3>-?\d+(?:\.\d+)?)\)"
+)
+
 # 角点颜色（BGR）：0 红(左下) 1 绿(左上) 2 蓝(右上) 3 黄(右下)
 POINT_COLORS = [
     (0, 0, 255),
@@ -55,17 +68,25 @@ class Frame:
     armors: list[Armor]
 
 
-def parse(path: Path) -> dict[int, Frame]:
+def parse(path: Path, fmt: str = "auto") -> dict[int, Frame]:
     frames: dict[int, Frame] = {}
+    if fmt == "auto":
+        with path.open("r", encoding="utf-8", errors="replace") as fh:
+            first = next((ln for ln in fh if ln.strip()), "")
+        fmt = "literal" if "装甲板" in first else "canonical"
+
+    line_re = LITERAL_FRAME_RE if fmt == "literal" else LINE_RE
+    armor_re = LITERAL_ARMOR_RE if fmt == "literal" else ARMOR_RE
+
     with path.open("r", encoding="utf-8", errors="replace") as fh:
         for line_no, raw in enumerate(fh, start=1):
             text = raw.rstrip("\r\n")
-            m = LINE_RE.match(text)
+            m = line_re.match(text)
             if not m:
                 print(f"警告: 第 {line_no} 行无法解析，已跳过: {text!r}", file=sys.stderr)
                 continue
             armors: list[Armor] = []
-            for am in ARMOR_RE.finditer(m.group("rest")):
+            for am in armor_re.finditer(m.group("rest")):
                 pts = [(float(am.group(f"x{k}")), float(am.group(f"y{k}"))) for k in range(4)]
                 armors.append(Armor(number=am.group("number"), points=pts))
             frames[int(m.group("frame"))] = Frame(index=int(m.group("frame")), armors=armors)
@@ -134,9 +155,15 @@ def main() -> int:
     ap.add_argument("--every", type=int, default=125, help="每 N 帧抽一张，默认 125（5 秒）")
     ap.add_argument("--frames", default="", help="指定帧号，逗号分隔；给出时忽略 --every")
     ap.add_argument("--out", type=Path, default=Path("verify"), help="输出目录，默认 verify/")
+    ap.add_argument(
+        "--format",
+        choices=["auto", "canonical", "literal"],
+        default="auto",
+        help="结果格式，默认 auto（按首行自动识别）",
+    )
     args = ap.parse_args()
 
-    frames = parse(args.result)
+    frames = parse(args.result, args.format)
     if not frames:
         print(f"结果文件为空或无法解析: {args.result}", file=sys.stderr)
         return 1

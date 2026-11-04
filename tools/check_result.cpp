@@ -59,6 +59,20 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    // 只支持 canonical 格式；若检测到 literal（"装甲板..."），给出明确提示而不是逐行报错
+    {
+        std::ifstream probe(txt_path);
+        std::string first_line;
+        std::getline(probe, first_line);
+        std::smatch probe_match;
+        if (!std::regex_match(first_line, probe_match, kLineRe) &&
+            first_line.find("装甲板") != std::string::npos) {
+            std::cerr << "检测到 literal 格式（含“装甲板”），C++ 版只支持 canonical；"
+                         "请改用 python3 tools/check_result.py（支持两种格式）\n";
+            return 2;
+        }
+    }
+
     std::vector<FrameRecord> records;
     std::vector<std::string> errors;
     std::string line;

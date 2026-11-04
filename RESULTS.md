@@ -75,6 +75,8 @@ RESULT: PASS
 - 加 `--format` 后，默认输出**逐字节不变**：Linux 上 `cmp` 与旧 `3.txt`/`4.txt` 完全一致；Windows 上重跑后去掉 CR 也完全一致。
 - literal 两条视频各 2209 / 3416 行，`check_result.py` 自动识别格式后同样 **PASS**（literal 无 `count` 字段，该项标注为跳过）。
 - literal 结果存放在 `results_alt/3_literal.txt`、`4_literal.txt`，主结果仍是根目录 `3.txt`/`4.txt`。
+- 两个 Python 工具都能自动识别格式；`render_check.py` 对两种格式渲染出的 PNG 逐字节相同（9 帧抽样比对），说明两种文件承载的数据完全一致。
+- C++ 版 `check_result` 只解析 canonical，遇到 literal 会直接提示改用 Python 版，不会静默误判。
 
 ## 3. 抽检
 

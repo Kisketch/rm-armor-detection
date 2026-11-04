@@ -4,7 +4,7 @@
 
 - 输入：`video/3.avi`（2209 帧）、`video/4.avi`（3416 帧），1440×1080 @25fps
 - 输出：`3.txt`、`4.txt`（每帧一行）
-- 实测性能：Linux 6.8 ms/帧（≈147 fps）、Windows 7.0 ms/帧（≈143 fps），单线程 CPU，满足 25 fps 实时要求
+- 实测性能：Linux 6.8–7.8 ms/帧（128–148 fps，随机器负载波动）、Windows 7.0 ms/帧（≈143 fps），单线程 CPU，满足 25 fps 实时要求
 - 实测平台：Ubuntu 26.04.1 LTS + OpenCV 4.10.0、Windows 11 + OpenCV 4.14.0（结果逐点一致）
 
 ## 目录结构
@@ -64,17 +64,17 @@ cmake --build build -j"$(nproc)"
 # 产物：build/start、build/check_result
 ```
 
-实测（Ubuntu 26.04.1，干净目录）：configure + build 一次通过，0 error；`build/start` 与 `build/check_result` 正常生成。
+实测（Ubuntu 26.04.1，干净目录）：`cmake` configure 0 error、`cmake --build` 0 error / 0 warning，`build/start` 与 `build/check_result` 正常生成。
 
 ## 运行
 
 ```bash
 # 用法
-./start <视频> [red|blue] [--headless] [--save-every N] [--save-list 帧号,...] [--max-frames N] [--dump-numbers N] [--verbose]
+./build/start <视频> [red|blue] [--headless] [--save-every N] [--save-list 帧号,...] [--max-frames N] [--dump-numbers N] [--verbose]
 
 # 生成结果（在仓库根目录执行，输出 3.txt / 4.txt）
-./start video/3.avi red --headless
-./start video/4.avi red --headless
+./build/start video/3.avi red --headless
+./build/start video/4.avi red --headless
 
 # 自检（任务书 §8.1）与反渲染抽检（§8.2）
 python3 tools/check_result.py 3.txt video/3.avi

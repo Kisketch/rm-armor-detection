@@ -24,6 +24,7 @@ int main(int argc, char* argv[]) {
     bool verbose = false;
     int save_every = 0;
     int dump_numbers_every = 0;
+    int output_format = 0;  // 0 = canonical，1 = literal
     long max_frames = -1;
     std::vector<std::size_t> save_list;
 
@@ -49,6 +50,15 @@ int main(int argc, char* argv[]) {
             dump_numbers_every = std::stoi(argv[++i]);
         } else if (arg == "--max-frames" && i + 1 < argc) {
             max_frames = std::stol(argv[++i]);
+        } else if (arg == "--format" && i + 1 < argc) {
+            const std::string format = argv[++i];
+            if (format == "canonical") {
+                output_format = 0;
+            } else if (format == "literal") {
+                output_format = 1;
+            } else {
+                return fail("--format 只能是 canonical 或 literal");
+            }
         } else if (arg == "red" || arg == "blue") {
             color = arg;
         } else if (path.empty()) {
@@ -60,7 +70,7 @@ int main(int argc, char* argv[]) {
     if (path.empty())
         return fail(std::string("用法: ") + argv[0] +
                     " <视频路径> [red|blue] [--headless] [--save-every N] [--max-frames N]"
-                    " [--dump-numbers N]\n"
+                    " [--dump-numbers N] [--format canonical|literal]\n"
                     "示例: ./start video/3.avi red --headless");
 
 #ifndef _WIN32
@@ -76,6 +86,7 @@ int main(int argc, char* argv[]) {
 
     ArmorDetector detector(std::string(MODEL_DIR) + "/mlp.onnx",
                            std::string(MODEL_DIR) + "/label.txt", 0.7, {"negative"});
+    detector.SetOutputFormat(output_format);
 
     const std::string stem = std::filesystem::path(path).stem().string();
     const std::string result_path = stem + ".txt";

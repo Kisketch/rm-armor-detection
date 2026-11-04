@@ -57,6 +57,21 @@ numbers: 3=3869
 RESULT: PASS
 ```
 
+## 2.1 双格式与回归验证
+
+`Homework.md` 的格式描述（“帧号，装甲板1:armor_number2.points:4个点”）有笔误、且无官方样例，因此程序支持两种输出，默认 canonical：
+
+| 格式 | 触发 | 一行示例 |
+| --- | --- | --- |
+| canonical（默认） | 不加参数 | `1, count=1, armor1: number=3, points=(520.53,647.13),(522.30,625.94),(571.50,626.00),(571.50,647.00)` |
+| literal | `--format literal` | `0，装甲板1: 3, points: (520.19,647.09),(521.81,625.91),(571.50,626.00),(571.50,647.00)` |
+
+验证：
+
+- 加 `--format` 后，默认输出**逐字节不变**：Linux 上 `cmp` 与旧 `3.txt`/`4.txt` 完全一致；Windows 上重跑后去掉 CR 也完全一致。
+- literal 两条视频各 2209 / 3416 行，`check_result.py` 自动识别格式后同样 **PASS**（literal 无 `count` 字段，该项标注为跳过）。
+- literal 结果存放在 `results_alt/3_literal.txt`、`4_literal.txt`，主结果仍是根目录 `3.txt`/`4.txt`。
+
 ## 3. 抽检
 
 ### 3.1 框的贴合度与角点顺序（A-03）

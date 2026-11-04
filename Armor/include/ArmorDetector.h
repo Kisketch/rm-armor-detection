@@ -20,11 +20,17 @@ public:
     void Classify(Armors &armors);
     void WriteFrameResult(std::ostream &out, std::size_t frame_number, const Armors &armors) const;
 
+    // 输出格式：
+    //   0 = canonical（默认，任务书 §7：<帧号>, count=N, armor1: number=X, points=(..)）
+    //   1 = literal（贴近 Homework.md 原句：<帧号>，装甲板1: X, points: (..)）
+    void SetOutputFormat(int format);
+
 private:
 
     // 检测参数
     int enemy_color_;
     int threshold_;
+    int output_format_ = 0;  // 0 = canonical，1 = literal，见 SetOutputFormat
 
     // 分类参数
     cv::dnn::Net net_;

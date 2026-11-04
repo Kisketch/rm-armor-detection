@@ -20,6 +20,7 @@
 | `tools/render_check.py` | 把 txt 四点反渲染回视频帧，生成人工抽检图，任务书 §8.2 |
 | `tools/check_result.cpp` | 等价的 C++ 版（自检 + `--render-every` 反渲染），随 CMake 一起构建 |
 | `verify/` | 由 txt 反渲染出的抽检图（每 5 秒 1 帧）+ 数字图拼图 `*_numbers.png` |
+| `results_alt/` | 两条视频的 literal 格式结果（备用，主结果仍是根目录的 `3.txt`/`4.txt`） |
 | `build/` | 构建产物（自动生成） |
 
 ## 环境
@@ -70,7 +71,7 @@ cmake --build build -j"$(nproc)"
 
 ```bash
 # 用法
-./build/start <视频> [red|blue] [--headless] [--save-every N] [--save-list 帧号,...] [--max-frames N] [--dump-numbers N] [--verbose]
+./build/start <视频> [red|blue] [--headless] [--save-every N] [--save-list 帧号,...] [--max-frames N] [--dump-numbers N] [--format canonical|literal] [--verbose]
 
 # 生成结果（在仓库根目录执行，输出 3.txt / 4.txt）
 ./build/start video/3.avi red --headless
@@ -94,6 +95,7 @@ python3 tools/render_check.py 4.txt video/4.avi --every 125 --out verify
 | `--max-frames N` | 只处理前 N 帧（调试用） |
 | `--dump-numbers N` | 每 N 帧收集分类后的数字图，结束时拼成 `verify/<视频名>_numbers.png`（标注帧号/数字/置信度）；与 `--save-list` 同用时，列表中的帧还会附上被 `Classify` 删除的候选（红字 `DROP`） |
 | `--verbose` | 每 25 帧打印灯条数/匹配数/最终数 |
+| `--format` | `canonical`（默认，任务书 §7 写法）或 `literal`（按 `Homework.md` 原句写法），见“输出格式” |
 
 调试开关（环境变量）：
 
@@ -101,7 +103,7 @@ python3 tools/render_check.py 4.txt video/4.avi --every 125 --out verify
 
 自检脚本说明：
 
-- `check_result.py` 输出 8 项 `PASS/FAIL`（行数=帧数、帧号连续、每行可解析、count 一致、每块 4 点、坐标在画面内、四点不退化、number 合法）与统计，最后一行 `RESULT: PASS/FAIL`，退出码 0/1 可直接进 CI。
+- `check_result.py` 输出 8 项 `PASS/FAIL`（行数=帧数、帧号连续、每行可解析、count 一致、每块 4 点、坐标在画面内、四点不退化、number 合法）与统计，最后一行 `RESULT: PASS/FAIL`，退出码 0/1 可直接进 CI。默认按首行自动识别 canonical/literal，也可用 `--format` 强制。
 - `render_check.py` 按 `--every N` 抽样（空帧也渲染），角点按顺序着色（0 红=左下 / 1 绿=左上 / 2 蓝=右上 / 3 黄=右下），左上角附 4 倍放大图。
 - 两个 Python 脚本在 Linux 上实测（Python 3.14.4 + cv2 4.10.0）。另有功能等价的 C++ 版 `build/check_result`（额外支持 `--render-every`），Windows 无 Python 环境时可用。
 
@@ -151,18 +153,40 @@ points = { left.bottom, left.top, right.top, right.bottom }
 
 ## 输出格式
 
+程序支持两种格式，用 `--format` 选择，**默认 canonical**。
+
+### canonical（默认，任务书 §7）
+
 ```
 <帧号>, count=<N>[, armor1: number=<数字>, points=(x,y),(x,y),(x,y),(x,y)][ | armor2: ...]
 ```
 
-- 一帧一行，行数等于视频帧数；无目标帧为 `<帧号>, count=0`。
-- 坐标保留 2 位小数，原点为左上角。
-- 示例：
-
 ```
 0, count=0
-1, count=1, armor1: number=3, points=(612.31,704.28),(610.02,651.77),(668.44,652.10),(670.90,705.02)
+1, count=1, armor1: number=3, points=(520.53,647.13),(522.30,625.94),(571.50,626.00),(571.50,647.00)
 ```
+
+### literal（`--format literal`，贴近 `Homework.md` 原句）
+
+```
+<帧号>[，装甲板1: <数字>, points: (x,y),(x,y),(x,y),(x,y)][ | 装甲板2: ...]
+```
+
+```
+26
+0，装甲板1: 3, points: (520.19,647.09),(521.81,625.91),(571.50,626.00),(571.50,647.00)
+0，装甲板1: 3, points: (586.57,625.09),(589.46,607.74),(623.50,606.00),(623.50,625.00) | 装甲板2: 3, points: (699.00,641.00),(699.00,624.00),(729.35,625.73),(732.04,639.19)
+```
+
+第一行是空帧（只写帧号），第三行是同一帧两块装甲板（取自 4.avi）。
+
+两种格式的共同约定：
+
+- 一帧一行，行数等于视频帧数；无目标帧在 canonical 下是 `<帧号>, count=0`，在 literal 下只有帧号。
+- 坐标保留 2 位小数，原点为左上角；四点顺序固定为左下、左上、右上、右下。
+- 数字取值 `1|2|3|4|outpost|guard|base|unknown`。
+
+> 为什么有两种：`Homework.md` 原句是“帧号，装甲板1:armor_number2.points:4个点”，本身有笔误且没有官方样例。默认 canonical（字段自解释、可稳定解析），literal 按原句逐字排版，评审若要求另一种写法，重新跑一遍即可（`--format literal`），代码逻辑不变。`results_alt/` 里放了两条视频的 literal 结果备查。
 
 ## 结果
 
@@ -187,7 +211,8 @@ python3 tools/check_result.py 4.txt video/4.avi
 | 文件 | 改动 |
 | --- | --- |
 | `Armor/src/ArmorDetector.cpp` | 实现 `FindLight`、`FindArmor`；重写 `WriteFrameResult`；阈值 180 → 70 |
-| `start.cpp` | 恢复 `ExtractNumbers`/`Classify` 调用；新增 `--headless`、`--dump-numbers` 等参数；无显示器自动 headless；输出统计 |
+| `start.cpp` | 恢复 `ExtractNumbers`/`Classify` 调用；新增 `--headless`、`--dump-numbers`、`--format` 等参数；无显示器自动 headless；输出统计 |
+| `Armor/include/ArmorDetector.h` | 新增 `SetOutputFormat()` 与 `output_format_`（不改动原有字段/签名） |
 | `CMakeLists.txt` | 增加 `imgcodecs` 组件、MSVC `/utf-8`、`check_result` 目标 |
 | `tools/check_result.cpp` | 新增 C++ 版自检/反渲染工具 |
 | `tools/check_result.py` | 新增 Python 版自检工具（任务书 §8.1，Linux 实测） |

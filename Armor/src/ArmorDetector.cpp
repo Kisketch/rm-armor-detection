@@ -366,19 +366,41 @@ void ArmorDetector::Classify(std::vector<Armor>& armors) {
 
 // ---- 构造函数 (合并 Tradition + NumberClassifier) ----
 
+void ArmorDetector::SetOutputFormat(int format) {
+    output_format_ = format;
+}
+
 void ArmorDetector::WriteFrameResult(std::ostream& out, std::size_t frame_number,
                                      const Armors& armors) const {
-    // 格式：<帧号>, count=N[, armor1: number=X, points=(x,y),(x,y),(x,y),(x,y)][ | armor2: ...]
+    // canonical 格式（默认）：
+    //   <帧号>, count=N[, armor1: number=X, points=(x,y),(x,y),(x,y),(x,y)][ | armor2: ...]
+    // literal 格式（--format literal，贴近 Homework.md 原句）：
+    //   <帧号>[，装甲板1: X, points: (x,y),(x,y),(x,y),(x,y)][ | 装甲板2: ...]
+    const auto write_points = [&out](const Armor& armor) {
+        for (std::size_t j = 0; j < armor.points.size(); ++j) {
+            if (j != 0) out << ',';
+            out << '(' << std::fixed << std::setprecision(2) << armor.points[j].x << ','
+                << armor.points[j].y << ')';
+        }
+    };
+
+    if (output_format_ == 1) {
+        out << frame_number;
+        for (std::size_t i = 0; i < armors.size(); ++i) {
+            out << (i == 0 ? "，" : " | ") << "装甲板" << (i + 1) << ": "
+                << (armors[i].number.empty() ? "unknown" : armors[i].number) << ", points: ";
+            write_points(armors[i]);
+        }
+        out << '\n';
+        return;
+    }
+
     out << frame_number << ", count=" << armors.size();
     for (std::size_t i = 0; i < armors.size(); ++i) {
         out << (i == 0 ? ", " : " | ");
         out << "armor" << (i + 1) << ": number="
             << (armors[i].number.empty() ? "unknown" : armors[i].number) << ", points=";
-        for (std::size_t j = 0; j < armors[i].points.size(); ++j) {
-            if (j != 0) out << ',';
-            out << '(' << std::fixed << std::setprecision(2) << armors[i].points[j].x << ','
-                << armors[i].points[j].y << ')';
-        }
+        write_points(armors[i]);
     }
     out << '\n';
 }

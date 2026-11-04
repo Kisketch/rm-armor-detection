@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
 """结果文件自检：检查行数、帧号连续性、格式、坐标合法性与统计信息。
 
+支持两种输出格式（与 start.cpp 的 --format 对应）：
+    canonical（默认）: 0, count=1, armor1: number=3, points=(x,y),(x,y),(x,y),(x,y)
+    literal         : 0，装甲板1: 3, points: (x,y),(x,y),(x,y),(x,y)
+
 用法:
-    python3 tools/check_result.py <结果.txt> <视频> [--frame-base N] [--max-errors N]
+    python3 tools/check_result.py <结果.txt> <视频> [--format auto|canonical|literal]
+                                  [--frame-base N] [--max-errors N] [--json 路径]
 
 输出每一项检查的 PASS/FAIL（任务书 §8.1 的 7 项），最后给出汇总统计。
 退出码 0 表示全部通过，1 表示存在错误（打印前 N 条错误原文）。
@@ -24,11 +29,20 @@ import cv2
 # 允许的数字类别（与 model/label.txt 一致，unknown 用于未启用分类的情况）
 ALLOWED_NUMBERS = {"1", "2", "3", "4", "outpost", "guard", "base", "unknown"}
 
-# 一行： "<frame>, count=<N>" 后可跟若干装甲板
-LINE_RE = re.compile(r"^(?P<frame>\d+), count=(?P<count>\d+)(?P<rest>.*)$")
-# 单个装甲板： "armor1: number=3, points=(x,y),(x,y),(x,y),(x,y)"
-ARMOR_RE = re.compile(
+# canonical： "<frame>, count=<N>" 后可跟若干装甲板
+CANON_LINE_RE = re.compile(r"^(?P<frame>\d+), count=(?P<count>\d+)(?P<rest>.*)$")
+CANON_ARMOR_RE = re.compile(
     r"armor(?P<idx>\d+): number=(?P<number>[^,\s]+), points="
+    r"\((?P<x0>-?\d+(?:\.\d+)?),(?P<y0>-?\d+(?:\.\d+)?)\),"
+    r"\((?P<x1>-?\d+(?:\.\d+)?),(?P<y1>-?\d+(?:\.\d+)?)\),"
+    r"\((?P<x2>-?\d+(?:\.\d+)?),(?P<y2>-?\d+(?:\.\d+)?)\),"
+    r"\((?P<x3>-?\d+(?:\.\d+)?),(?P<y3>-?\d+(?:\.\d+)?)\)"
+)
+
+# literal： "<frame>[，装甲板<i>: <num>, points: (x,y)x4][ | 装甲板<j>: ...]"
+LITERAL_LINE_RE = re.compile(r"^(?P<frame>\d+)(?P<rest>.*)$")
+LITERAL_ARMOR_RE = re.compile(
+    r"，?装甲板(?P<idx>\d+): (?P<number>[^,]+), points: "
     r"\((?P<x0>-?\d+(?:\.\d+)?),(?P<y0>-?\d+(?:\.\d+)?)\),"
     r"\((?P<x1>-?\d+(?:\.\d+)?),(?P<y1>-?\d+(?:\.\d+)?)\),"
     r"\((?P<x2>-?\d+(?:\.\d+)?),(?P<y2>-?\d+(?:\.\d+)?)\),"
@@ -45,7 +59,7 @@ class Armor:
 @dataclass
 class Frame:
     index: int
-    declared_count: int
+    declared_count: int | None  # literal 格式没有 count 字段，记为 None
     armors: list[Armor] = field(default_factory=list)
     raw: str = ""
 
@@ -60,17 +74,35 @@ def shoelace_area(points: list[tuple[float, float]]) -> float:
     return abs(area) * 0.5
 
 
-def parse_result(path: Path, frame_base: int, max_errors: int):
+def _points_from_match(m: re.Match) -> list[tuple[float, float]]:
+    return [(float(m.group(f"x{k}")), float(m.group(f"y{k}"))) for k in range(4)]
+
+
+def detect_format(path: Path) -> str:
+    """根据首行内容判断格式。"""
+    with path.open("r", encoding="utf-8", errors="replace") as fh:
+        for raw in fh:
+            text = raw.strip()
+            if not text:
+                continue
+            return "literal" if "装甲板" in text else "canonical"
+    return "canonical"
+
+
+def parse_result(path: Path, fmt: str, max_errors: int):
     frames: list[Frame] = []
     errors: list[str] = []
     number_hist: Counter[str] = Counter()
     bad_parse = 0
     bad_leftover = 0
 
+    line_re = LITERAL_LINE_RE if fmt == "literal" else CANON_LINE_RE
+    armor_re = LITERAL_ARMOR_RE if fmt == "literal" else CANON_ARMOR_RE
+
     with path.open("r", encoding="utf-8", errors="replace") as fh:
         for line_no, raw in enumerate(fh, start=1):
             text = raw.rstrip("\r\n")
-            m = LINE_RE.match(text)
+            m = line_re.match(text)
             if not m:
                 bad_parse += 1
                 if len(errors) < max_errors:
@@ -78,28 +110,27 @@ def parse_result(path: Path, frame_base: int, max_errors: int):
                 continue
 
             frame_index = int(m.group("frame"))
-            declared = int(m.group("count"))
-            rest = m.group("rest")
-            armors: list[Armor] = []
+            if fmt == "literal":
+                declared = None
+                rest = m.group("rest")
+            else:
+                declared = int(m.group("count"))
+                rest = m.group("rest")
 
-            for am in ARMOR_RE.finditer(rest):
-                pts = [
-                    (float(am.group(f"x{k}")), float(am.group(f"y{k}"))) for k in range(4)
-                ]
-                armors.append(Armor(number=am.group("number"), points=pts))
+            armors: list[Armor] = []
+            for am in armor_re.finditer(rest):
+                armors.append(Armor(number=am.group("number"), points=_points_from_match(am)))
                 number_hist[am.group("number")] += 1
 
-            # 行内是否还有未被 ARMOR_RE 吃掉的内容（分隔符本身不算）
-            leftover = ARMOR_RE.sub("", rest)
-            leftover = leftover.replace("|", "").replace(",", "").strip()
+            # 行内是否还有未被正则吃掉的内容（分隔符本身不算）
+            leftover = armor_re.sub("", rest)
+            leftover = leftover.replace("|", "").replace("，", "").replace(",", "").strip()
             if leftover:
                 bad_leftover += 1
                 if len(errors) < max_errors:
                     errors.append(f"第 {line_no} 行存在无法解析的片段: {leftover!r}")
 
-            frames.append(
-                Frame(index=frame_index, declared_count=declared, armors=armors, raw=text)
-            )
+            frames.append(Frame(index=frame_index, declared_count=declared, armors=armors, raw=text))
 
     return frames, errors, number_hist, bad_parse, bad_leftover
 
@@ -108,6 +139,12 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="装甲板结果文件自检")
     ap.add_argument("result", type=Path, help="结果 txt，例如 3.txt")
     ap.add_argument("video", type=Path, help="对应视频，例如 video/3.avi")
+    ap.add_argument(
+        "--format",
+        choices=["auto", "canonical", "literal"],
+        default="auto",
+        help="结果格式，默认 auto（按首行自动识别）",
+    )
     ap.add_argument("--frame-base", type=int, default=0, help="帧号基数，默认 0")
     ap.add_argument("--max-errors", type=int, default=20, help="最多打印多少条错误")
     ap.add_argument("--json", type=Path, default=None, help="可选：把统计结果写成 JSON")
@@ -125,8 +162,9 @@ def main() -> int:
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     cap.release()
 
+    fmt = detect_format(args.result) if args.format == "auto" else args.format
     frames, errors, number_hist, bad_parse, bad_leftover = parse_result(
-        args.result, args.frame_base, args.max_errors
+        args.result, fmt, args.max_errors
     )
     checks: list[tuple[str, bool, str]] = []
 
@@ -167,16 +205,19 @@ def main() -> int:
     )
 
     # 4. count 与条目数一致；每块装甲板恰好 4 点
-    count_mismatch = [fr for fr in frames if fr.declared_count != len(fr.armors)]
-    points_ok = all(len(a.points) == 4 for fr in frames for a in fr.armors)
-    checks.append(
-        (
-            "count 与条目数一致",
-            not count_mismatch,
-            f"mismatch_lines={len(count_mismatch)}"
-            + (f" first=frame {count_mismatch[0].index}" if count_mismatch else ""),
+    if fmt == "literal":
+        checks.append(("count 与条目数一致", True, "literal 格式无 count 字段，跳过"))
+    else:
+        count_mismatch = [fr for fr in frames if fr.declared_count != len(fr.armors)]
+        checks.append(
+            (
+                "count 与条目数一致",
+                not count_mismatch,
+                f"mismatch_lines={len(count_mismatch)}"
+                + (f" first=frame {count_mismatch[0].index}" if count_mismatch else ""),
+            )
         )
-    )
+    points_ok = all(len(a.points) == 4 for fr in frames for a in fr.armors)
     checks.append(
         (
             "每块装甲板恰好 4 点",
@@ -245,7 +286,7 @@ def main() -> int:
     ratio = 100.0 * frames_with_armor / n if n else 0.0
     mean_count = total_armors / n if n else 0.0
 
-    print(f"file={args.result} video={args.video}")
+    print(f"file={args.result} video={args.video} format={fmt}")
     for name, ok, detail in checks:
         print(f"[{'PASS' if ok else 'FAIL'}] {name}  ({detail})")
     print()
@@ -274,6 +315,7 @@ def main() -> int:
                 {
                     "file": str(args.result),
                     "video": str(args.video),
+                    "format": fmt,
                     "video_frames": total_frames,
                     "lines": n,
                     "frames_with_armor": frames_with_armor,

@@ -83,11 +83,6 @@ python3 tools/render_check.py 3.txt video/3.avi --every 125 --out verify
 python3 tools/render_check.py 4.txt video/4.avi --every 125 --out verify
 ```
 
-`check_result.py` 输出 8 项 `PASS/FAIL`（行数=帧数、帧号连续、每行可解析、count 一致、每块 4 点、坐标在画面内、四点不退化、number 合法）与统计，最后一行 `RESULT: PASS/FAIL`，退出码 0/1 可直接进 CI。
-`render_check.py` 按 `--every N` 抽样（空帧也渲染），角点按顺序着色（0 红=左下 / 1 绿=左上 / 2 蓝=右上 / 3 黄=右下），左上角附 4 倍放大图。
-
-> 这两个 Python 脚本在 Linux 上实测（Python 3.14.4 + cv2 4.10.0）。另有功能等价的 C++ 版 `build/check_result`（额外支持 `--render-every`），Windows 无 Python 环境时可用。
-
 | 参数 | 说明 |
 | --- | --- |
 | `red` / `blue` | 敌方颜色，默认 `red` |
@@ -101,6 +96,12 @@ python3 tools/render_check.py 4.txt video/4.avi --every 125 --out verify
 调试开关（环境变量）：
 
 - `ARMOR_SAVE_MASK=<起始帧>`：保存该帧起 6 张灯条掩码到 `debug/`。
+
+自检脚本说明：
+
+- `check_result.py` 输出 8 项 `PASS/FAIL`（行数=帧数、帧号连续、每行可解析、count 一致、每块 4 点、坐标在画面内、四点不退化、number 合法）与统计，最后一行 `RESULT: PASS/FAIL`，退出码 0/1 可直接进 CI。
+- `render_check.py` 按 `--every N` 抽样（空帧也渲染），角点按顺序着色（0 红=左下 / 1 绿=左上 / 2 蓝=右上 / 3 黄=右下），左上角附 4 倍放大图。
+- 两个 Python 脚本在 Linux 上实测（Python 3.14.4 + cv2 4.10.0）。另有功能等价的 C++ 版 `build/check_result`（额外支持 `--render-every`），Windows 无 Python 环境时可用。
 
 ## 算法
 

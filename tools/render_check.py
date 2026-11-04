@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """把结果 txt 里的四点反渲染回原视频帧，生成人工抽检图。
 
-支持 canonical（默认格式）与 literal（--format literal）两种结果文件，默认按首行自动识别。
+支持 canonical（默认格式）与 literal（--format literal）两种结果文件，默认自动识别。
 
 用法:
     python3 tools/render_check.py <结果.txt> <视频> [--every N] [--frames 0,125,250] [--out verify]
@@ -71,9 +71,23 @@ class Frame:
 def parse(path: Path, fmt: str = "auto") -> dict[int, Frame]:
     frames: dict[int, Frame] = {}
     if fmt == "auto":
+        fmt = "canonical"
         with path.open("r", encoding="utf-8", errors="replace") as fh:
-            first = next((ln for ln in fh if ln.strip()), "")
-        fmt = "literal" if "装甲板" in first else "canonical"
+            for raw in fh:
+                text = raw.strip()
+                if not text:
+                    continue
+                # 与 check_result.py 相同的判定：装甲板 → literal；"N, count=" → canonical；
+                # 纯数字（literal 的空帧行）→ literal
+                if "装甲板" in text:
+                    fmt = "literal"
+                elif LINE_RE.match(text):
+                    fmt = "canonical"
+                elif text.isdigit():
+                    fmt = "literal"
+                else:
+                    continue
+                break
 
     line_re = LITERAL_FRAME_RE if fmt == "literal" else LINE_RE
     armor_re = LITERAL_ARMOR_RE if fmt == "literal" else ARMOR_RE
@@ -159,7 +173,7 @@ def main() -> int:
         "--format",
         choices=["auto", "canonical", "literal"],
         default="auto",
-        help="结果格式，默认 auto（按首行自动识别）",
+        help="结果格式，默认 auto（自动识别）",
     )
     args = ap.parse_args()
 

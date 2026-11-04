@@ -2,3 +2,10 @@
 debug/
 video/*.avi
 *.zip
+
+# Python 工具运行产物
+__pycache__/
+*.pyc
+
+# 编辑器配置
+.vscode/

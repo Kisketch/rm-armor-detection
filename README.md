@@ -7,6 +7,25 @@
 - 实测性能：Linux 6.8–7.8 ms/帧（128–148 fps，随机器负载波动）、Windows 7.0 ms/帧（≈143 fps），单线程 CPU，满足 25 fps 实时要求
 - 实测平台：Ubuntu 26.04.1 LTS + OpenCV 4.10.0、Windows 11 + OpenCV 4.14.0（结果逐点一致）
 
+## 快速开始
+
+```bash
+sudo apt install -y build-essential cmake pkg-config libopencv-dev python3-opencv
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j"$(nproc)"
+./build/start video/3.avi red --headless          # 生成 3.txt
+python3 tools/check_result.py 3.txt video/3.avi   # 自检
+```
+
+提交包不含视频，先把 `3.avi` / `4.avi` 放进 `video/`。
+
+## 效果
+
+| 3.avi 第 875 帧（同一帧两块） | 4.avi 第 2625 帧（斜对相机） |
+| --- | --- |
+| ![3.avi f875](verify/3_f00875.png) | ![4.avi f2625](verify/4_f02625.png) |
+
+图中绿框由结果 txt 反渲染得到（不是检测时画的），角点四色：左下红、左上绿、右上蓝、右下黄；左上角为 4 倍放大图。
+
 ## 目录结构
 
 | 路径 | 作用 |
@@ -21,6 +40,8 @@
 | `tools/check_result.cpp` | 等价的 C++ 版（自检 + `--render-every` 反渲染），随 CMake 一起构建 |
 | `verify/` | 由 txt 反渲染出的抽检图（每 5 秒 1 帧）+ 数字图拼图 `*_numbers.png` |
 | `results_alt/` | 两条视频的 literal 格式结果（备用，主结果仍是根目录的 `3.txt`/`4.txt`） |
+| `.github/workflows/ci.yml` | GitHub Actions：Ubuntu 构建（0 warning）+ 合成视频跑通两种格式 |
+| `requirements.txt` | Python 工具依赖（opencv-python、numpy） |
 | `build/` | 构建产物（自动生成） |
 
 ## 环境
@@ -67,6 +88,17 @@ cmake --build build -j"$(nproc)"
 
 实测（Ubuntu 26.04.1，干净目录）：`cmake` configure 0 error、`cmake --build` 0 error / 0 warning，`build/start` 与 `build/check_result` 正常生成。
 
+### 持续集成
+
+`.github/workflows/ci.yml` 在每次 push / PR 时于 `ubuntu-24.04` 上执行：
+
+1. 安装 `libopencv-dev`、`python3-opencv`；
+2. 配置 + 构建，并检查构建日志里 **0 条 warning**；
+3. 用 50 帧合成全黑视频跑 canonical 与 literal 两种格式：行数必须 = 50、全部 `count=0`，再跑 `check_result.py`；
+4. 验证非法 `--format xml` 会报错退出。
+
+仓库不含真实视频（100–160 MB），CI 只验证"能构建、能跑通、格式对"，精度指标以本机结果为准。
+
 ## 运行
 
 ```bash
@@ -85,6 +117,7 @@ python3 tools/render_check.py 4.txt video/4.avi --every 125 --out verify
 ```
 
 > 提交包按任务书要求不含视频：先把 `3.avi`/`4.avi` 放进 `video/` 再运行上面的命令。
+> Python 工具依赖：`python3 -m pip install -r requirements.txt`（或装系统包 `python3-opencv`）。
 
 | 参数 | 说明 |
 | --- | --- |
@@ -103,7 +136,7 @@ python3 tools/render_check.py 4.txt video/4.avi --every 125 --out verify
 
 自检脚本说明：
 
-- `check_result.py` 输出 8 项 `PASS/FAIL`（行数=帧数、帧号连续、每行可解析、count 一致、每块 4 点、坐标在画面内、四点不退化、number 合法）与统计，最后一行 `RESULT: PASS/FAIL`，退出码 0/1 可直接进 CI。默认按首行自动识别 canonical/literal，也可用 `--format` 强制。
+- `check_result.py` 输出 8 项 `PASS/FAIL`（行数=帧数、帧号连续、每行可解析、count 一致、每块 4 点、坐标在画面内、四点不退化、number 合法）与统计，最后一行 `RESULT: PASS/FAIL`，退出码 0/1 可直接进 CI。默认自动识别 canonical/literal，也可用 `--format` 强制。
 - `render_check.py` 按 `--every N` 抽样（空帧也渲染），角点按顺序着色（0 红=左下 / 1 绿=左上 / 2 蓝=右上 / 3 黄=右下），左上角附 4 倍放大图；同样自动识别两种格式（实测两种格式渲染出的 PNG 逐字节相同）。
 - 两个 Python 脚本在 Linux 上实测（Python 3.14.4 + cv2 4.10.0）。另有 C++ 版 `build/check_result`（额外支持 `--render-every`，**只解析 canonical**），Windows 无 Python 环境时可用。
 

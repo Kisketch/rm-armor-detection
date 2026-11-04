@@ -1,0 +1,63 @@
+name: build-and-smoke
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  linux:
+    name: Ubuntu + OpenCV 4
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake pkg-config libopencv-dev python3-opencv
+
+      # 0 warning 是 README 里写下的承诺，这里直接卡住
+      - name: Configure and build (warning-free)
+        run: |
+          set -o pipefail
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build -j"$(nproc)" 2>&1 | tee /tmp/build.log
+          ! grep -q "warning:" /tmp/build.log
+
+      # 仓库不含视频（100–160 MB），用合成视频验证整条流水线能跑通：
+      # 全黑画面应当每帧 count=0，行数必须等于帧数。
+      - name: Synthetic video smoke test (canonical)
+        run: |
+          mkdir -p video
+          python3 - <<'PY'
+          import cv2
+          import numpy as np
+
+          width, height, frames = 640, 480, 50
+          writer = cv2.VideoWriter("video/synthetic.avi", cv2.VideoWriter_fourcc(*"MJPG"), 25,
+                                   (width, height))
+          for _ in range(frames):
+              writer.write(np.zeros((height, width, 3), np.uint8))
+          writer.release()
+          PY
+          ./build/start video/synthetic.avi red --headless
+          test "$(wc -l < synthetic.txt)" -eq 50
+          test "$(grep -c 'count=0' synthetic.txt)" -eq 50
+          python3 tools/check_result.py synthetic.txt video/synthetic.avi
+
+      - name: Synthetic video smoke test (literal)
+        run: |
+          ./build/start video/synthetic.avi red --headless --format literal
+          mv -f synthetic.txt synthetic_literal.txt
+          test "$(wc -l < synthetic_literal.txt)" -eq 50
+          ! grep -q '装甲板' synthetic_literal.txt
+          python3 tools/check_result.py synthetic_literal.txt video/synthetic.avi
+
+      - name: Reject unknown --format value
+        run: |
+          if ./build/start video/synthetic.avi red --headless --format xml; then
+            echo "未知 --format 应当报错，但程序成功退出"
+            exit 1
+          fi

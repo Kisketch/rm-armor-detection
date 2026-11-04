@@ -79,13 +79,25 @@ def _points_from_match(m: re.Match) -> list[tuple[float, float]]:
 
 
 def detect_format(path: Path) -> str:
-    """根据首行内容判断格式。"""
+    """根据文件内容判断格式。
+
+    逐行看，谁先给出明确信号就用谁：
+      - 含 "装甲板"           → literal
+      - 形如 "N, count=..."    → canonical
+      - 只有纯数字（空帧行）   → literal
+    这样即使整段视频一帧都没检测到（literal 文件只有帧号），也能判对。
+    """
     with path.open("r", encoding="utf-8", errors="replace") as fh:
         for raw in fh:
             text = raw.strip()
             if not text:
                 continue
-            return "literal" if "装甲板" in text else "canonical"
+            if "装甲板" in text:
+                return "literal"
+            if CANON_LINE_RE.match(text):
+                return "canonical"
+            if text.isdigit():
+                return "literal"
     return "canonical"
 
 
@@ -143,7 +155,7 @@ def main() -> int:
         "--format",
         choices=["auto", "canonical", "literal"],
         default="auto",
-        help="结果格式，默认 auto（按首行自动识别）",
+        help="结果格式，默认 auto（自动识别）",
     )
     ap.add_argument("--frame-base", type=int, default=0, help="帧号基数，默认 0")
     ap.add_argument("--max-errors", type=int, default=20, help="最多打印多少条错误")

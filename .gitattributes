@@ -1,0 +1,2 @@
+# 结果文件固定用 LF，保证 Linux/Windows 下检出的 3.txt/4.txt 内容一致
+*.txt text eol=lf

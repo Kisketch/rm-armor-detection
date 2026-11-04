@@ -4,7 +4,8 @@
 
 - 输入：`video/3.avi`（2209 帧）、`video/4.avi`（3416 帧），1440×1080 @25fps
 - 输出：`3.txt`、`4.txt`（每帧一行）
-- 实测性能：约 140 fps（7 ms/帧，单线程 CPU），满足 25 fps 实时要求
+- 实测性能：Linux 6.8 ms/帧（≈147 fps）、Windows 7.0 ms/帧（≈143 fps），单线程 CPU，满足 25 fps 实时要求
+- 实测平台：Ubuntu 26.04.1 LTS + OpenCV 4.10.0、Windows 11 + OpenCV 4.14.0（结果逐点一致）
 
 ## 目录结构
 
@@ -15,7 +16,9 @@
 | `Armor/include/ArmorTypes.h` | 灯条 / 装甲板数据结构（未改动） |
 | `io/` | `VideoReader` 封装（未改动） |
 | `model/mlp.onnx`、`model/label.txt` | 数字分类模型与标签（未改动） |
-| `tools/check_result.cpp` | 结果自检 + 反渲染工具 |
+| `tools/check_result.py` | 结果自检脚本（行数/帧号/格式/坐标/统计），任务书 §8.1 |
+| `tools/render_check.py` | 把 txt 四点反渲染回视频帧，生成人工抽检图，任务书 §8.2 |
+| `tools/check_result.cpp` | 等价的 C++ 版（自检 + `--render-every` 反渲染），随 CMake 一起构建 |
 | `verify/` | 由 txt 反渲染出的抽检图（每 5 秒 1 帧）+ 数字图拼图 `*_numbers.png` |
 | `build/` | 构建产物（自动生成） |
 
@@ -25,12 +28,17 @@
 
 | 项 | 版本 |
 | --- | --- |
-| 系统 | Windows（VS 18 2026 Community） |
-| 编译器 | MSVC 14.51.36231（x64） |
-| 构建 | CMake 4.3.1（VS 自带），生成器 `Visual Studio 18 2026` |
-| OpenCV | 4.14.0（官方 Windows 预编译包，`build/x64/vc16`） |
+| 系统 A | Ubuntu 26.04.1 LTS（x86_64，8 核） |
+| 编译器 A | g++ 15.2.0 |
+| 构建 A | CMake 4.2.3 |
+| OpenCV A | 4.10.0（Ubuntu 包 `4.10.0+dfsg-7ubuntu5`，`pkg-config --modversion opencv4` 实测） |
+| Python A | 3.14.4 + opencv-python 4.10.0 + numpy 2.3.5（跑自检脚本） |
+| 系统 B | Windows 11（VS 18 2026 Community） |
+| 编译器 B | MSVC 14.51.36231（x64） |
+| 构建 B | CMake 4.3.1（VS 自带），生成器 `Visual Studio 18 2026` |
+| OpenCV B | 4.14.0（官方 Windows 预编译包，`build/x64/vc16`） |
 
-Linux 同样可用（代码无平台相关 API）：Ubuntu 20.04/22.04 + `build-essential cmake pkg-config libopencv-dev`。
+两套环境的输出逐点一致（5625 行、最大坐标差 0.000000 px，仅行尾 CRLF/LF 不同），见 `RESULTS.md` §4。
 
 ## 构建
 
@@ -50,9 +58,13 @@ $env:Path = "C:\opencv\opencv\build\x64\vc16\bin;" + $env:Path
 ### Linux
 
 ```bash
-sudo apt update && sudo apt install -y build-essential cmake pkg-config libopencv-dev
-cmake -S . -B build && cmake --build build -j"$(nproc)"
+sudo apt update && sudo apt install -y build-essential cmake pkg-config libopencv-dev python3-opencv
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j"$(nproc)"
+# 产物：build/start、build/check_result
 ```
+
+实测（Ubuntu 26.04.1，干净目录）：configure + build 一次通过，0 error；`build/start` 与 `build/check_result` 正常生成。
 
 ## 运行
 
@@ -63,7 +75,18 @@ cmake -S . -B build && cmake --build build -j"$(nproc)"
 # 生成结果（在仓库根目录执行，输出 3.txt / 4.txt）
 ./start video/3.avi red --headless
 ./start video/4.avi red --headless
+
+# 自检（任务书 §8.1）与反渲染抽检（§8.2）
+python3 tools/check_result.py 3.txt video/3.avi
+python3 tools/check_result.py 4.txt video/4.avi
+python3 tools/render_check.py 3.txt video/3.avi --every 125 --out verify
+python3 tools/render_check.py 4.txt video/4.avi --every 125 --out verify
 ```
+
+`check_result.py` 输出 8 项 `PASS/FAIL`（行数=帧数、帧号连续、每行可解析、count 一致、每块 4 点、坐标在画面内、四点不退化、number 合法）与统计，最后一行 `RESULT: PASS/FAIL`，退出码 0/1 可直接进 CI。
+`render_check.py` 按 `--every N` 抽样（空帧也渲染），角点按顺序着色（0 红=左下 / 1 绿=左上 / 2 蓝=右上 / 3 黄=右下），左上角附 4 倍放大图。
+
+> 这两个 Python 脚本在 Linux 上实测（Python 3.14.4 + cv2 4.10.0）。另有功能等价的 C++ 版 `build/check_result`（额外支持 `--render-every`），Windows 无 Python 环境时可用。
 
 | 参数 | 说明 |
 | --- | --- |
@@ -140,16 +163,21 @@ points = { left.bottom, left.top, right.top, right.bottom }
 
 ## 结果
 
-见 `RESULTS.md`。两条视频均通过自检：
+见 `RESULTS.md`。两条视频均通过自检（Ubuntu 26.04 + OpenCV 4.10.0 实测）：
 
 ```bash
-./build/Release/check_result.exe 3.txt video/3.avi --render-every 125
-./build/Release/check_result.exe 4.txt video/4.avi --render-every 125
+python3 tools/check_result.py 3.txt video/3.avi
+python3 tools/check_result.py 4.txt video/4.avi
 ```
 
-`check_result` 检查：行数 = 视频帧数、帧号从 0 连续、每行可解析、`count` 与条目数一致、每块 4 点、坐标在画面内、四点面积非 0、`number` 在允许集合内；并输出有目标帧占比、最长全 0 段、相邻帧 count 最大跳变、数字分布。`--render-every N` 把 txt 里的点画回原视频（空帧也画），角点按顺序着色（0 红 / 1 绿 / 2 蓝 / 3 黄），左上角附 4 倍放大图。
+```
+3.txt: 2209 行 = 2209 帧 | 有目标 2122 帧 (96.06%) | 2372 块 | 最长全 0 段 8 帧 | PASS
+4.txt: 3416 行 = 3416 帧 | 有目标 3323 帧 (97.28%) | 3869 块 | 最长全 0 段 8 帧 | PASS
+```
 
-> 说明：任务书建议用 Python 写自检脚本。本机的 `python` 命令只是 Microsoft Store 占位程序，也没有装 opencv-python，所以用 C++ + OpenCV 实现了同样的检查，跟主程序一起由 CMake 构建，评审复现时不需要额外装 Python 依赖。
+`check_result.py` 检查：行数 = 视频帧数、帧号从 0 连续、每行可解析、`count` 与条目数一致、每块 4 点、坐标在画面内、四点面积非 0、`number` 在允许集合内；并输出有目标帧占比、最长全 0 段、相邻帧 count 最大跳变、数字分布。`render_check.py` 把 txt 里的点画回原视频（空帧也画），角点按顺序着色（0 红 / 1 绿 / 2 蓝 / 3 黄），左上角附 4 倍放大图。
+
+> 说明：任务书同时要求 C++ 主程序与 Python 自检脚本。两个 Python 工具按 §8.1/§8.2 实现并在 Linux 实测；另保留 C++ 版 `build/check_result`（额外支持 `--render-every`），在没装 Python/opencv-python 的 Windows 机器上也能复现同一套检查。
 
 ## 相对模板的改动
 
@@ -158,7 +186,9 @@ points = { left.bottom, left.top, right.top, right.bottom }
 | `Armor/src/ArmorDetector.cpp` | 实现 `FindLight`、`FindArmor`；重写 `WriteFrameResult`；阈值 180 → 70 |
 | `start.cpp` | 恢复 `ExtractNumbers`/`Classify` 调用；新增 `--headless`、`--dump-numbers` 等参数；无显示器自动 headless；输出统计 |
 | `CMakeLists.txt` | 增加 `imgcodecs` 组件、MSVC `/utf-8`、`check_result` 目标 |
-| `tools/check_result.cpp` | 新增自检/反渲染工具 |
+| `tools/check_result.cpp` | 新增 C++ 版自检/反渲染工具 |
+| `tools/check_result.py` | 新增 Python 版自检工具（任务书 §8.1，Linux 实测） |
+| `tools/render_check.py` | 新增 Python 版反渲染抽检工具（任务书 §8.2，Linux 实测） |
 | `README.md` | 重写 |
 
 `ArmorTypes.h`、`io/`、`model/`、`ExtractNumbers`、`Classify` 均未改动。
@@ -169,4 +199,5 @@ points = { left.bottom, left.top, right.top, right.bottom }
 2. 机器人正侧对相机时，每块装甲板只露出一条灯条，无法配对，会漏检（两条视频最长连续漏检均为 8 帧，约 0.3 s，已抽帧确认属于这种情况）。
 3. 判别阈值按本批暗光视频标定；换场地/曝光需要重调 `threshold_` 与灯条/配对参数。
 4. 灯条倾角限制在竖直 ±40° 以内（`kMaxTiltDeg`），装甲板滚转更大时不会被检测。
-5. 只在 Windows 上实测；Linux 下的自动 headless 分支没有在真机上跑过（代码无平台相关 API，预期可用）。
+5. 已在 Ubuntu 26.04.1 + OpenCV 4.10.0（GCC 15.2.0）与 Windows 11 + OpenCV 4.14.0（MSVC 14.51）两套环境实测；Linux 的自动 headless 分支用 `env -u DISPLAY -u WAYLAND_DISPLAY ./build/start video/3.avi red` 验证过（自动打印"未检测到 DISPLAY，自动启用 --headless"）。
+6. 尚未在 Ubuntu 20.04/22.04 的 OpenCV 4.5/4.2 上验证；两份结果的一致性说明当前代码只用了 OpenCV 4.x 的稳定 API，但低版本未实测。

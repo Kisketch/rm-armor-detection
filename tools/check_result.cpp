@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -84,6 +85,11 @@ int main(int argc, char* argv[]) {
                 armor.points.emplace_back(std::stof((*it)[2 + 2 * k].str()),
                                           std::stof((*it)[3 + 2 * k].str()));
             ++number_hist[armor.number];
+            static const std::vector<std::string> kAllowed = {
+                "1", "2", "3", "4", "outpost", "guard", "base", "unknown"};
+            if (std::find(kAllowed.begin(), kAllowed.end(), armor.number) == kAllowed.end())
+                errors.push_back("line " + std::to_string(line_no) + ": number 不在允许集合内: " +
+                                 armor.number);
             rec.armors.push_back(armor);
         }
 
@@ -105,9 +111,19 @@ int main(int argc, char* argv[]) {
     int current_zero = 0;
     int zero_start = -1;
     int longest_zero_start = -1;
+    int max_jump = 0;
+    int max_jump_frame = -1;
 
     for (std::size_t i = 0; i < records.size(); ++i) {
         const auto& rec = records[i];
+        if (i > 0) {
+            const int jump = std::abs(static_cast<int>(rec.armors.size()) -
+                                      static_cast<int>(records[i - 1].armors.size()));
+            if (jump > max_jump) {
+                max_jump = jump;
+                max_jump_frame = rec.frame;
+            }
+        }
         if (rec.frame != static_cast<int>(i))
             errors.push_back("第 " + std::to_string(i + 1) + " 行的帧号是 " +
                              std::to_string(rec.frame) + "，应为 " + std::to_string(i));
@@ -152,6 +168,8 @@ int main(int argc, char* argv[]) {
               << (records.empty() ? 0.0 : static_cast<double>(total_armors) / records.size())
               << " max_count=" << max_count << '\n'
               << "longest_zero_run=" << longest_zero << " (from frame " << longest_zero_start
+              << ")\n"
+              << "max_adjacent_count_jump=" << max_jump << " (at frame " << max_jump_frame
               << ")\n";
 
     std::cout << "numbers:";
@@ -163,17 +181,47 @@ int main(int argc, char* argv[]) {
         const std::string stem = std::filesystem::path(video_path).stem().string();
         int saved = 0;
         for (const auto& rec : records) {
-            if (rec.frame % render_every != 0 || rec.armors.empty()) continue;
+            // 空帧也渲染，这样漏检在抽检图里同样可见
+            if (rec.frame % render_every != 0) continue;
             cap.set(cv::CAP_PROP_POS_FRAMES, rec.frame);
             cv::Mat img;
             if (!cap.read(img)) continue;
+            const cv::Mat original = img.clone();
+            // 角点颜色：0 红(左下) 1 绿(左上) 2 蓝(右上) 3 黄(右下)
+            const cv::Scalar point_colors[4] = {cv::Scalar(0, 0, 255), cv::Scalar(0, 255, 0),
+                                                cv::Scalar(255, 0, 0), cv::Scalar(0, 255, 255)};
+            int inset_x = 10;
             for (const auto& armor : rec.armors) {
                 std::vector<cv::Point> poly;
                 for (const auto& p : armor.points) poly.emplace_back(cv::Point(cvRound(p.x), cvRound(p.y)));
                 cv::polylines(img, poly, true, cv::Scalar(0, 255, 0), 2);
-                cv::putText(img, armor.number, poly[1], cv::FONT_HERSHEY_SIMPLEX, 0.8,
-                            cv::Scalar(0, 255, 0), 2);
+                for (int k = 0; k < 4; ++k) cv::circle(img, poly[k], 4, point_colors[k], -1);
+                cv::putText(img, armor.number, poly[1] + cv::Point(0, -8), cv::FONT_HERSHEY_SIMPLEX,
+                            0.8, cv::Scalar(0, 255, 0), 2);
+
+                // 左上角贴一张 4 倍放大的局部图，便于核对贴合度与角点顺序
+                cv::Rect box = cv::boundingRect(poly);
+                const int pad = std::max(box.width, box.height) / 2 + 10;
+                box = cv::Rect(box.x - pad, box.y - pad, box.width + 2 * pad, box.height + 2 * pad) &
+                      cv::Rect(0, 0, original.cols, original.rows);
+                if (box.area() <= 0) continue;
+                cv::Mat crop = original(box).clone();
+                const double scale = 4.0;
+                cv::resize(crop, crop, cv::Size(), scale, scale, cv::INTER_LINEAR);
+                std::vector<cv::Point> local;
+                for (const auto& p : armor.points)
+                    local.emplace_back(cvRound((p.x - box.x) * scale), cvRound((p.y - box.y) * scale));
+                cv::polylines(crop, local, true, cv::Scalar(0, 255, 0), 1);
+                for (int k = 0; k < 4; ++k) cv::circle(crop, local[k], 5, point_colors[k], -1);
+                if (inset_x + crop.cols > img.cols || 60 + crop.rows > img.rows) continue;
+                crop.copyTo(img(cv::Rect(inset_x, 60, crop.cols, crop.rows)));
+                cv::rectangle(img, cv::Rect(inset_x, 60, crop.cols, crop.rows), cv::Scalar(255, 255, 255), 1);
+                inset_x += crop.cols + 10;
             }
+            char header[96];
+            std::snprintf(header, sizeof(header), "frame %d  count=%zu", rec.frame, rec.armors.size());
+            cv::putText(img, header, cv::Point(10, 40), cv::FONT_HERSHEY_SIMPLEX, 1.0,
+                        cv::Scalar(255, 255, 255), 2);
             char name[128];
             std::snprintf(name, sizeof(name), "verify/%s_f%05d.png", stem.c_str(), rec.frame);
             cv::imwrite(name, img);

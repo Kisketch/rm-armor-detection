@@ -16,7 +16,7 @@
 | `io/` | `VideoReader` 封装（未改动） |
 | `model/mlp.onnx`、`model/label.txt` | 数字分类模型与标签（未改动） |
 | `tools/check_result.cpp` | 结果自检 + 反渲染工具 |
-| `verify/` | 由 txt 反渲染出的抽检图 |
+| `verify/` | 由 txt 反渲染出的抽检图（每 5 秒 1 帧）+ 数字图拼图 `*_numbers.png` |
 | `build/` | 构建产物（自动生成） |
 
 ## 环境
@@ -58,7 +58,7 @@ cmake -S . -B build && cmake --build build -j"$(nproc)"
 
 ```bash
 # 用法
-./start <视频> [red|blue] [--headless] [--save-every N] [--save-list 帧号,...] [--max-frames N] [--verbose]
+./start <视频> [red|blue] [--headless] [--save-every N] [--save-list 帧号,...] [--max-frames N] [--dump-numbers N] [--verbose]
 
 # 生成结果（在仓库根目录执行，输出 3.txt / 4.txt）
 ./start video/3.avi red --headless
@@ -68,10 +68,11 @@ cmake -S . -B build && cmake --build build -j"$(nproc)"
 | 参数 | 说明 |
 | --- | --- |
 | `red` / `blue` | 敌方颜色，默认 `red` |
-| `--headless` | 不开窗口、不 `waitKey`，用于批量/无显示器环境 |
+| `--headless` | 不开窗口、不 `waitKey`，用于批量/无显示器环境。Linux 下没有 `DISPLAY`/`WAYLAND_DISPLAY` 时自动启用 |
 | `--save-every N` | 每 N 帧保存一张带框的调试图到 `debug/` |
 | `--save-list a,b,c` | 仅保存指定帧号的调试图 |
 | `--max-frames N` | 只处理前 N 帧（调试用） |
+| `--dump-numbers N` | 每 N 帧收集分类后的数字图，结束时拼成 `verify/<视频名>_numbers.png`（标注帧号/数字/置信度）；与 `--save-list` 同用时，列表中的帧还会附上被 `Classify` 删除的候选（红字 `DROP`） |
 | `--verbose` | 每 25 帧打印灯条数/匹配数/最终数 |
 
 调试开关（环境变量）：
@@ -108,7 +109,15 @@ cmake -S . -B build && cmake --build build -j"$(nproc)"
 | 装甲板宽高比 | 1.1 ~ 5.0 |
 | 宽高比 ≥ 3.0 | 判为 LARGE，否则 SMALL |
 
-四点取两块灯条的**外侧角点**，顺序固定为 **左下 → 左上 → 右上 → 右下**（`ExtractNumbers` 的透视变换依赖该顺序，写反会导致数字镜像）。同帧重复框按中心距去重。
+四点取两条灯条**长轴的上下端点**（`LightBlob::top/bottom`），顺序固定为 **左下 → 左上 → 右上 → 右下**：
+
+```
+points = { left.bottom, left.top, right.top, right.bottom }
+```
+
+`ExtractNumbers` 的透视变换依赖这个顺序（写反会导致数字镜像），而且它把灯条端点映射到 28 px 高图里的 12 px 灯条位置，用端点正好对得上。同帧重复框按中心距去重。
+
+> 调试记录：最初版本是“8 个角点按 x 排序，取最左/最右各两个”。灯条细且稍有倾斜时，最左两个角点可能都是**上端**角点，四边形自交，数字图被扭成乱码，`Classify` 把它删掉——表现为“两块装甲板都清楚可见却输出 count=0”（例如 3.avi 第 875 帧）。改用长轴端点后，有目标帧占比 3.avi 92.1% → 96.1%、4.avi 87.8% → 97.3%，`outpost` 误判 17 → 0。详见 `RESULTS.md`。
 
 ### 3. 数字识别
 
@@ -134,16 +143,20 @@ cmake -S . -B build && cmake --build build -j"$(nproc)"
 见 `RESULTS.md`。两条视频均通过自检：
 
 ```bash
-./build/Release/check_result.exe 3.txt video/3.avi --render-every 300
-./build/Release/check_result.exe 4.txt video/4.avi --render-every 400
+./build/Release/check_result.exe 3.txt video/3.avi --render-every 125
+./build/Release/check_result.exe 4.txt video/4.avi --render-every 125
 ```
+
+`check_result` 检查：行数 = 视频帧数、帧号从 0 连续、每行可解析、`count` 与条目数一致、每块 4 点、坐标在画面内、四点面积非 0、`number` 在允许集合内；并输出有目标帧占比、最长全 0 段、相邻帧 count 最大跳变、数字分布。`--render-every N` 把 txt 里的点画回原视频（空帧也画），角点按顺序着色（0 红 / 1 绿 / 2 蓝 / 3 黄），左上角附 4 倍放大图。
+
+> 说明：任务书建议用 Python 写自检脚本，但本机未装 Python，所以用 C++ + OpenCV 实现了同样的检查，跟主程序一起由 CMake 构建，不需要额外依赖。
 
 ## 相对模板的改动
 
 | 文件 | 改动 |
 | --- | --- |
 | `Armor/src/ArmorDetector.cpp` | 实现 `FindLight`、`FindArmor`；重写 `WriteFrameResult`；阈值 180 → 70 |
-| `start.cpp` | 恢复 `ExtractNumbers`/`Classify` 调用；新增 `--headless` 等参数；输出统计 |
+| `start.cpp` | 恢复 `ExtractNumbers`/`Classify` 调用；新增 `--headless`、`--dump-numbers` 等参数；无显示器自动 headless；输出统计 |
 | `CMakeLists.txt` | 增加 `imgcodecs` 组件、MSVC `/utf-8`、`check_result` 目标 |
 | `tools/check_result.cpp` | 新增自检/反渲染工具 |
 | `README.md` | 重写 |
@@ -152,7 +165,8 @@ cmake -S . -B build && cmake --build build -j"$(nproc)"
 
 ## 已知限制
 
-1. 数字模型只有 8 类，`outpost` 在极小/模糊目标上偶尔误判：两条视频共 17 帧（占 0.33%）。
-2. 一侧灯条被遮挡时无法配对，会漏检（两条视频最长连续漏检均为 10 帧，约 0.4 s）。
-3. 判别阈值按本批视频的暗光场景标定；换场地/曝光需要重调 `threshold_` 与灯条/配对参数。
-4. 装甲板大幅侧倾（滚转超过约 40°）时四点排序依赖 x 排序，可能失效。
+1. 两条视频里出现的只有 3 号步兵，所以数字识别只在“3”上验证过，其它数字没有样本。
+2. 机器人正侧对相机时，每块装甲板只露出一条灯条，无法配对，会漏检（两条视频最长连续漏检均为 8 帧，约 0.3 s，已抽帧确认属于这种情况）。
+3. 判别阈值按本批暗光视频标定；换场地/曝光需要重调 `threshold_` 与灯条/配对参数。
+4. 灯条倾角限制在竖直 ±40° 以内（`kMaxTiltDeg`），装甲板滚转更大时不会被检测。
+5. 只在 Windows 上实测；Linux 下的自动 headless 分支没有在真机上跑过（代码无平台相关 API，预期可用）。

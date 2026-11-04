@@ -172,27 +172,13 @@ Armors ArmorDetector::FindArmor(cv::Mat& src, LightBlobs& light_blobs) {
             const float plate_ratio = plate_width / avg_len;
             if (plate_ratio < kMinPlateRatio || plate_ratio > kMaxPlateRatio) continue;
 
-            // 5) 取两块灯条的外侧角点，拼成装甲板四点
+            // 5) 用两条灯条长轴的上下端点拼成装甲板四点
             //    顺序：0=左下 1=左上 2=右上 3=右下（与 ExtractNumbers 的 warp 目标一致）
-            std::vector<cv::Point2f> corners;
-            corners.reserve(8);
-            cv::Point2f pts[4];
-            left->rect.points(pts);
-            corners.insert(corners.end(), pts, pts + 4);
-            right->rect.points(pts);
-            corners.insert(corners.end(), pts, pts + 4);
-            std::sort(corners.begin(), corners.end(),
-                      [](const cv::Point2f& a, const cv::Point2f& b) { return a.x < b.x; });
-
-            cv::Point2f left_pair[2] = {corners[0], corners[1]};
-            cv::Point2f right_pair[2] = {corners[6], corners[7]};
-            if (left_pair[0].y > left_pair[1].y) std::swap(left_pair[0], left_pair[1]);
-            if (right_pair[0].y > right_pair[1].y) std::swap(right_pair[0], right_pair[1]);
-
+            //    LightBlob 构造时已按 y 求出 top/bottom（长轴两端中点）；灯条倾角限制在 ±40°
+            //    以内，所以 top 一定在上。不要用“8 个角点按 x 排序取外侧”的做法：灯条细且
+            //    稍有倾斜时，最左两个角点可能都是上端角点，四边形自交，数字图被扭成乱码。
             Armor armor;
-            // 排序后 left_pair[0] 在上、left_pair[1] 在下；right_pair 同理。
-            // 契约要求：0=左下 1=左上 2=右上 3=右下
-            armor.points = {left_pair[1], left_pair[0], right_pair[0], right_pair[1]};
+            armor.points = {left->bottom, left->top, right->top, right->bottom};
             armor.type = plate_ratio >= kLargeArmorRatio ? ArmorType::LARGE : ArmorType::SMALL;
             armor.center =
                 (armor.points[0] + armor.points[1] + armor.points[2] + armor.points[3]) * 0.25f;

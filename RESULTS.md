@@ -21,7 +21,7 @@
 
 ```
 $ python3 tools/check_result.py 3.txt video/3.avi
-file=3.txt video=video/3.avi
+file=3.txt video=video/3.avi format=canonical
 [PASS] 行数 == 视频帧数  (lines=2209 video_frames=2209)
 [PASS] 帧号从 0 起严格 +1  (range=[0, 2208])
 [PASS] 每行可完整解析  (unparsable_lines=0 stray_fragments=0)
@@ -30,16 +30,18 @@ file=3.txt video=video/3.avi
 [PASS] 坐标在画面范围内  (out_of_bounds=0 frame=1440x1080)
 [PASS] 四点不退化  (degenerate=0)
 [PASS] number 在允许集合内  (classes=['3'])
+
 video_frames=2209 lines=2209
 frames_with_armor=2122 (96.06%)
 total_armors=2372 mean_count=1.0738 max_count=2
 longest_zero_run=8 (from frame 937)
 max_adjacent_count_jump=2 (at frame 60)
 numbers: 3=2372
+
 RESULT: PASS
 
 $ python3 tools/check_result.py 4.txt video/4.avi
-file=4.txt video=video/4.avi
+file=4.txt video=video/4.avi format=canonical
 [PASS] 行数 == 视频帧数  (lines=3416 video_frames=3416)
 [PASS] 帧号从 0 起严格 +1  (range=[0, 3415])
 [PASS] 每行可完整解析  (unparsable_lines=0 stray_fragments=0)
@@ -48,12 +50,14 @@ file=4.txt video=video/4.avi
 [PASS] 坐标在画面范围内  (out_of_bounds=0 frame=1440x1080)
 [PASS] 四点不退化  (degenerate=0)
 [PASS] number 在允许集合内  (classes=['3'])
+
 video_frames=3416 lines=3416
 frames_with_armor=3323 (97.28%)
 total_armors=3869 mean_count=1.1326 max_count=2
 longest_zero_run=8 (from frame 1479)
 max_adjacent_count_jump=2 (at frame 21)
 numbers: 3=3869
+
 RESULT: PASS
 ```
 

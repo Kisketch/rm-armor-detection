@@ -17,6 +17,10 @@ frame ─► Detector ─────────► PoseSolver ─────�
 
 ## Results
 
+The tables below are the frozen `rm-autoaim/main` baseline at `a0c655b`.
+Results for the integration branch, including its accuracy versus shot-volume
+trade-off, are in [the 2026-11-05 improvement log](docs/IMPROVEMENT_LOG_2026-11-05.md).
+
 Two real videos (1440×1080, 25 fps, the same red infantry robot "3"), plus
 eight simulated scenarios with exact ground truth. **Hit rate** = hits /
 verifiable shots; **hits/s** = hits per second of video (the damage output).
@@ -189,9 +193,11 @@ images from another camera would not calibrate those recordings.
 
 `autoaim_video` reads the recording's FPS metadata for timestamps, tracking,
 prediction horizons, virtual shots, and output video. When metadata is absent or
-invalid, it uses `eval.fps` from the config. A cached detection file with the
-wrong frame count is regenerated; valid cached detections are retimed to the
-recording's FPS before evaluation.
+invalid, it uses `eval.fps` from the config. The detection cache is reused only
+when its complete video content, detector settings, model and labels match.
+Malformed or old caches are regenerated; valid cached detections are retimed to
+the recording's FPS before evaluation. `--sweep refine_corners` is rejected
+because that parameter changes the detections themselves.
 
 Requirements: CMake ≥ 3.16, a C++17 compiler, OpenCV 4 (core, imgproc,
 imgcodecs, videoio, highgui, calib3d, dnn).
@@ -346,36 +352,43 @@ Six-second clips (detection overlay, 25 fps):
 [video 4, frames 2600-2750](docs/detections/4_lights.mp4)
 
 ```bash
-./build/autoaim_lights video/3.avi --frames 875 --clip 850:1000 --out docs/detections
+./build/autoaim_lights ../video/3.avi --frames 875 --clip 850:1000 --out docs/detections
 ```
 
 ### Aiming accuracy: original vs overlay, side by side
 
 [`docs/detections/compare_3and4.mp4`](docs/detections/compare_3and4.mp4) (12 s,
-1920×720) stitches the two segments: left half is the untouched frame, right half
+1920×754) stitches the two segments: left half is the matching source frame, right half
 is the HUD (`autoaim_video --render`). The HUD shows the detected plate, the
 modelled other three, the aim point at `t + t_fly` (red), the virtual impact (×),
 a gun-direction top view and the tracker state. Both halves get the same
 display-only gamma (1.6) because the recordings are dark; nothing about the
 detection changes.
 
+The first version of the short comparison accidentally paired source frames
+0–150 with overlay frames 850–1000 and 2625–2775. It is retained as
+[`compare_3and4_unaligned_legacy.mp4`](docs/detections/compare_3and4_unaligned_legacy.mp4)
+for audit only. The linked clip above was regenerated with frame alignment.
+
 ```bash
-./build/autoaim_video video/3.avi --out runs/cmp3 --render 850:1000
-python3 tools/make_compare_video.py     # needs ffmpeg on PATH
+./build/autoaim_video ../video/3.avi --out runs/cmp3 --render 850:1000
+./build/autoaim_video ../video/4.avi --out runs/cmp4 --render 2625:2775
+python3 tools/make_compare_video.py     # ffmpeg on PATH, or pass --ffmpeg PATH
 ```
 
-Full-length versions (every frame, 1920×720, H.264) are built with the same tool:
+Use `--video-dir` when the original videos are elsewhere, and `--out-dir` for
+the comparison output. Full-length versions (every frame, 1920×754, H.264) are
+built with the same tool:
 
 ```bash
-./build/autoaim_video video/3.avi --out runs/cmp3 --render 0:2208
-./build/autoaim_video video/4.avi --out runs/cmp4 --render 0:3415
+./build/autoaim_video ../video/3.avi --out runs/cmp3 --render 0:2208
+./build/autoaim_video ../video/4.avi --out runs/cmp4 --render 0:3415
 python3 tools/make_compare_video.py --full
 ```
 
 They are ~47 MB / 75 MB / 123 MB (3, 4, concatenated), too large for the repo, so
 they ship in the local package next to the source videos. Per-shot diagnostics of
 where the misses land: [`docs/miss_analysis.md`](docs/miss_analysis.md).
-```
 
 ### Simulator-in-the-loop tuning (`tools/tune_sim.py`)
 

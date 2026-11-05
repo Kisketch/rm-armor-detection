@@ -8,7 +8,7 @@
 
 - 输入：`video/3.avi`（2209 帧）、`video/4.avi`（3416 帧），1440×1080 @25fps
 - 输出：`3.txt`、`4.txt`（每帧一行）
-- 实测性能：Linux 6.8–7.8 ms/帧（128–148 fps，随机器负载波动）、Windows 7.0 ms/帧（≈143 fps），单线程 CPU，满足 25 fps 实时要求
+- 实测性能：Linux 6.8–18 ms/帧（55–148 fps，随宿主 CPU 频率/调度波动，见 `RESULTS.md` §5）、Windows 7.0–7.6 ms/帧（131–143 fps），单线程 CPU，均满足 25 fps 实时要求
 - 实测平台：Ubuntu 26.04.1 LTS + OpenCV 4.10.0、Windows 11 + OpenCV 4.14.0（结果逐点一致）
 
 ## 快速开始
@@ -46,6 +46,7 @@ python3 tools/check_result.py 3.txt video/3.avi   # 自检
 | `results_alt/` | 两条视频的 literal 格式结果（备用，主结果仍是根目录的 `3.txt`/`4.txt`） |
 | `.github/workflows/ci.yml` | GitHub Actions：Ubuntu 构建（0 warning）+ 合成视频跑通两种格式 |
 | `requirements.txt` | Python 工具依赖（opencv-python、numpy） |
+| `DELIVERY.md` | 交付报告（任务、验收、指标、复现、限制） |
 | `build/` | 构建产物（自动生成） |
 
 ## 环境

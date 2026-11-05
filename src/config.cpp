@@ -43,6 +43,8 @@ Config Config::load(const std::string& path) {
     get(cam, "fy", c.camera.fy);
     get(cam, "cx", c.camera.cx);
     get(cam, "cy", c.camera.cy);
+    get(cam, "width", c.camera.width);
+    get(cam, "height", c.camera.height);
     getDoubles(cam, "dist", c.camera.dist);
     get(cam, "pitch_deg", c.camera.pitch_deg);
 
@@ -95,6 +97,9 @@ Config Config::load(const std::string& path) {
     get(t, "max_radius", c.tracker.max_radius);
     get(t, "q_adapt_max", c.tracker.q_adapt_max);
     get(t, "nis_ema_alpha", c.tracker.nis_ema_alpha);
+    get(t, "singer_tau", c.tracker.singer_tau);
+    get(t, "ca_model", c.tracker.ca_model);
+    get(t, "q_acc", c.tracker.q_acc);
 
     const auto b = fs["ballistic"];
     get(b, "bullet_speed", c.ballistic.bullet_speed);
@@ -113,6 +118,7 @@ Config Config::load(const std::string& path) {
     get(a, "fire_sigma_scale", c.aimer.fire_sigma_scale);
     get(a, "gimbal_tau", c.aimer.gimbal_tau);
     get(a, "gimbal_max_rate", c.aimer.gimbal_max_rate);
+    get(a, "gimbal_ff", c.aimer.gimbal_ff);
 
     const auto e = fs["eval"];
     get(e, "fps", c.eval.fps);
@@ -133,6 +139,9 @@ bool setParam(Config& c, const std::string& key, double v) {
     else if (key == "pixel_noise") c.tracker.pixel_noise = v;
     else if (key == "q_adapt_max") c.tracker.q_adapt_max = v;
     else if (key == "nis_alpha") c.tracker.nis_ema_alpha = v;
+    else if (key == "singer_tau") c.tracker.singer_tau = v;
+    else if (key == "ca_model") c.tracker.ca_model = v != 0;
+    else if (key == "q_acc") c.tracker.q_acc = v;
     else if (key == "max_match_distance") c.tracker.max_match_distance = v;
     else if (key == "side_angle") c.aimer.side_angle_deg = v;
     else if (key == "max_fire_facing") c.aimer.max_fire_facing_deg = v;
@@ -141,6 +150,7 @@ bool setParam(Config& c, const std::string& key, double v) {
     else if (key == "fire_tolerance") c.aimer.fire_tolerance_scale = v;
     else if (key == "fire_sigma") c.aimer.fire_sigma_scale = v;
     else if (key == "gimbal_tau") c.aimer.gimbal_tau = v;
+    else if (key == "gimbal_ff") c.aimer.gimbal_ff = v;
     else if (key == "armor_pitch") c.pose.armor_pitch_deg = v;
     else if (key == "optimize_yaw") c.pose.optimize_yaw = v != 0;
     else if (key == "yaw_gain") c.pose.yaw_gain = v;

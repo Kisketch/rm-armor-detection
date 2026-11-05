@@ -254,7 +254,7 @@ EvalResult evaluate(const Config& cfg, const std::vector<FrameObservations>& obs
     RobotAimer robot_aimer(cfg.aimer, ball);
     PointAimer point_aimer(cfg.aimer, ball);
     DirectAimer direct_aimer(cfg.aimer, ball);
-    GimbalSim g_robot(cfg.aimer.gimbal_tau, cfg.aimer.gimbal_max_rate);
+    GimbalSim g_robot(cfg.aimer.gimbal_tau, cfg.aimer.gimbal_max_rate, cfg.aimer.gimbal_ff);
     GimbalSim g_point = g_robot, g_direct = g_robot;
     ShotJudge video_judge(obs, camera, ball, fps);
     const JudgeFn default_judge = [&](double t, double yaw, double pitch, double tf, const std::string& id,

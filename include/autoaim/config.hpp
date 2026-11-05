@@ -13,6 +13,7 @@ namespace autoaim {
 
 struct CameraConfig {
     double fx = 2400, fy = 2400, cx = 720, cy = 540;
+    int width = 0, height = 0;  // 0 for legacy configs without a declared image size
     std::vector<double> dist = {0, 0, 0, 0, 0};
     double pitch_deg = 0.0;   // camera tilt, positive = looking down
     cv::Matx33d K() const { return {fx, 0, cx, 0, fy, cy, 0, 0, 1}; }
@@ -74,6 +75,16 @@ struct TrackerConfig {
     // the target manoeuvres. 1 disables the adaptation.
     double q_adapt_max = 20.0;
     double nis_ema_alpha = 0.2;
+    // Singer velocity model: the target's velocity is damped with time constant
+    // tau instead of being held constant. 0 keeps the constant-velocity model.
+    // Rationale: a strafing robot reverses direction within the 0.3 s lead, and
+    // a CV extrapolation overshoots; tau ~ 1 s matches a 2 s strafe period.
+    double singer_tau = 0.0;
+    // Constant-acceleration extension for the robot centre: two extra states
+    // (AXC, AYC) appended after DZ so no existing index moves. q_acc is the
+    // jerk spectral density; 0 disables the model.
+    double ca_model = 0.0;
+    double q_acc = 2.0;
 };
 
 struct BallisticConfig {
@@ -99,6 +110,9 @@ struct AimerConfig {
     // simulated gimbal
     double gimbal_tau = 0.03;        // s, first-order lag
     double gimbal_max_rate = 12.0;   // rad/s
+    // Velocity feedforward into the simulated gimbal (0 = pure P lag).
+    // Models a real gimbal that also receives the commanded yaw rate.
+    double gimbal_ff = 0.0;
 };
 
 struct EvalConfig {

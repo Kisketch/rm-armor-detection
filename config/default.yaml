@@ -64,6 +64,11 @@ tracker:
    max_radius: 0.4
    q_adapt_max: 20.
    nis_ema_alpha: 0.2
+   # Singer velocity damping. Tuned on the two videos (sweep in README):
+   # 0.3 s gives 66.6% / 65.4% (video 3 / video 4) vs 62.5% / 59.6% for the
+   # constant-velocity model. The synthetic simulator prefers CV because its
+   # strafing is a smooth sinusoid; the real robot reverses direction often.
+   singer_tau: 0.3
 
 ballistic:
    bullet_speed: 25.

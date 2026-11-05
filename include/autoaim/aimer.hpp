@@ -58,10 +58,12 @@ public:
     AimCommand aim(const RobotTracker& tracker, double now) const;
 
 private:
-    int selectArmor(const RobotTracker& t, const RobotTracker::Vec& x, double& facing) const;
+    int selectArmor(const RobotTracker& t, const RobotTracker::Vec& x, int previous,
+                    double& facing) const;
     AimerConfig cfg_;
     const Ballistics& ball_;
     mutable int last_armor_ = -1;  // plate chosen last frame, for switch hysteresis
+    mutable std::string last_id_;  // tracker id the hysteresis state belongs to
 };
 
 class PointAimer {

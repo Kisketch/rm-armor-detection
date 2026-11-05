@@ -26,7 +26,7 @@ verifiable shots; **hits/s** = hits per second of video (the damage output).
 |---|---|---|---|---|
 | direct (aim at the current plate, no prediction) | 35.5% | 7.4 | 56.7%* | 11.8 |
 | point KF (constant-velocity predictor on the plate) | 29.6% | 5.5 | 43.1% | 3.5 |
-| **robot EKF (this system)** | **67.2%** | **10.2** | **68.1%** | **9.5** |
+| **robot EKF (this system)** | **67.6%** | **10.6** | **68.6%** | **10.0** |
 | oracle (cheats: aims at the plate seen at impact time) | 99.3% | 22.4 | 93.8% | 22.0 |
 
 \* At video 4's spin rate (8.3 rad/s) the 0.33 s lead is ≈ 155°, so "aim where a plate
@@ -40,11 +40,11 @@ centre; the plate's half-width is about 24 px):
 
 | horizon | no prediction | point KF | robot EKF |
 |---|---|---|---|
-| video 3, 0.12 s | 27.4 | 9.7 | **4.9** |
+| video 3, 0.12 s | 27.4 | 9.7 | **5.0** |
 | video 3, 0.20 s | 44.1 | 29.7 | **8.3** |
-| video 3, 0.32 s | 39.1 | 66.6 | **14.2** |
-| video 4, 0.20 s | 23.1 | 91.0 | **10.4** |
-| video 4, 0.32 s | 44.5 | 84.9 | **14.8** |
+| video 3, 0.32 s | 39.1 | 66.6 | **14.3** |
+| video 4, 0.20 s | 23.1 | 91.0 | **9.5** |
+| video 4, 0.32 s | 44.5 | 84.9 | **13.4** |
 
 **Recovered robot geometry.** The two videos are independent recordings, and the
 tracker recovers the same robot from both:
@@ -240,6 +240,28 @@ with the median prediction error at 0.32 s in brackets:
 | F + Singer velocity damping (τ = 0.3 s) | **66.6%** (14.2) | **65.4%** (16.7) |
 | G + plate-switch hysteresis (3°) | **66.8%** (14.2) | **65.8%** (16.7) |
 | H + yaw process noise 30 → 8 | **67.2%** (14.2) | **68.1%** (14.8) |
+| I + hysteresis state fix (external review) | 66.9% (14.2) | 67.3% (14.8) |
+| J + `q_yaw` 3 and `q_r` 3e-3 | **67.6%** (14.3) | **68.6%** (13.4) |
+
+Step I is a correctness fix found in an external review: the hysteresis was applied
+inside the four flight-time iterations, so it compared against an intermediate pick
+instead of the plate committed on the previous frame. Fixing it makes the
+hysteresis actually hold; shot count rises (+1% / +3%) and so does hits/s, while the
+hit rate dips 0.3 / 0.8 pp. Step J then re-tunes the two noise terms that this
+changed: `q_yaw` 3 and `q_r` 3e-3 are a plateau (2–4 / 2e-3–3e-3), not a spike.
+`q_r` had never been swept; raising it lets the filter follow the apparent-size
+change as the robot approaches, which is where video 4's 0.32 s error drops
+14.8 → 13.4 px.
+
+| `q_yaw` | 2 | **3** | 4 | 6 | 8 |
+|---|---|---|---|---|---|
+| video 3 | 67.0% | **67.6%** | 67.8% | 67.1% | 66.9% |
+| video 4 | 68.7% | **68.6%** | 68.2% | 67.9% | 67.3% |
+
+| `q_r` (with `q_yaw=3`) | 2e-3 | **3e-3** | 5e-3 |
+|---|---|---|---|
+| video 3 | 67.2% | **67.6%** | 67.5% |
+| video 4 | 68.4% | **68.6%** | 67.8% |
 
 Step F sweep on both videos (robot-EKF hit rate / median 0.32 s error):
 

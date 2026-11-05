@@ -14,11 +14,14 @@
 
 #include <chrono>
 #include <cmath>
+#include <cstdint>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <sstream>
+#include <stdexcept>
 
 #include "autoaim/config.hpp"
 #include "autoaim/detector.hpp"
@@ -30,6 +33,66 @@ using namespace autoaim;
 namespace fs = std::filesystem;
 
 namespace {
+
+// A non-cryptographic content fingerprint is sufficient for cache invalidation.
+// Hash the complete video and classifier assets so two files with the same stem
+// and frame count cannot silently share detections.
+std::uint64_t fileHash(const std::string& path) {
+    std::ifstream in(path, std::ios::binary);
+    if (!in) throw std::runtime_error("cannot hash input: " + path);
+    std::uint64_t h = 14695981039346656037ULL;
+    char buf[1 << 16];
+    while (in.read(buf, sizeof(buf)) || in.gcount() > 0)
+        for (std::streamsize i = 0; i < in.gcount(); ++i) {
+            h ^= static_cast<unsigned char>(buf[i]);
+            h *= 1099511628211ULL;
+        }
+    if (in.bad()) throw std::runtime_error("cannot finish hashing input: " + path);
+    return h;
+}
+
+std::string cacheSignature(const std::string& video, const DetectorConfig& d) {
+    std::ostringstream s;
+    s << std::setprecision(17) << "detector-v2 " << CV_VERSION << ' ' << fileHash(video) << ' '
+      << fileHash(d.model_path) << ' ' << fileHash(d.label_path) << ' '
+      << static_cast<int>(d.enemy_color) << ' ' << d.channel_diff_threshold << ' '
+      << d.min_light_length << ' ' << d.min_light_aspect << ' ' << d.max_light_aspect << ' '
+      << d.min_fill_ratio << ' ' << d.max_light_tilt_deg << ' ' << d.max_pair_angle_diff_deg << ' '
+      << d.max_length_ratio << ' ' << d.max_center_y_diff << ' ' << d.min_gap_ratio << ' '
+      << d.max_gap_ratio << ' ' << d.min_plate_ratio << ' ' << d.max_plate_ratio << ' '
+      << d.large_plate_ratio << ' ' << d.reject_contained_lights << ' ' << d.refine_corners << ' '
+      << d.classify_threshold;
+    for (const auto& name : d.ignore_classes) s << ' ' << name.size() << ':' << name;
+    std::uint64_t h = 14695981039346656037ULL;
+    for (unsigned char c : s.str()) {
+        h ^= c;
+        h *= 1099511628211ULL;
+    }
+    std::ostringstream hex;
+    hex << std::hex << std::setw(16) << std::setfill('0') << h;
+    return hex.str();
+}
+
+bool cacheMetadataMatches(const std::string& path, const std::string& signature,
+                          std::size_t frames) {
+    try {
+        cv::FileStorage meta(path, cv::FileStorage::READ);
+        if (!meta.isOpened() || meta["version"].empty() || meta["signature"].empty() ||
+            meta["frames"].empty()) return false;
+        return static_cast<int>(meta["version"]) == 2 &&
+               static_cast<std::string>(meta["signature"]) == signature &&
+               static_cast<int>(meta["frames"]) == static_cast<int>(frames);
+    } catch (const cv::Exception&) {
+        return false;
+    }
+}
+
+void saveCacheMetadata(const std::string& path, const std::string& signature,
+                       std::size_t frames) {
+    cv::FileStorage meta(path, cv::FileStorage::WRITE);
+    if (!meta.isOpened()) throw std::runtime_error("cannot write cache metadata: " + path);
+    meta << "version" << 2 << "signature" << signature << "frames" << static_cast<int>(frames);
+}
 
 std::vector<FrameDetections> runDetector(const std::string& video, const Config& cfg, double& ms_per_frame) {
     cv::VideoCapture cap(video);
@@ -158,24 +221,32 @@ int main(int argc, char** argv) {
             std::cerr << "unknown parameter " << k << '\n';
             return 1;
         }
+    if (sweep_key == "refine_corners") {
+        std::cerr << "refine_corners changes detections; use separate --set runs instead of --sweep\n";
+        return 1;
+    }
 
     fs::create_directories(out_dir);
     const std::string stem = fs::path(video).stem().string();
     const std::string cache = out_dir + "/" + stem + "_detections.txt";
+    const std::string metadata = cache + ".meta.yml";
+    const std::string signature = cacheSignature(video, cfg.detector);
 
     std::vector<FrameDetections> dets;
     double det_ms = 0;
     const bool cache_ok = !redetect && loadDetections(cache, dets) && !dets.empty() &&
+        cacheMetadataMatches(metadata, signature, dets.size()) &&
         (!std::isfinite(recorded_frames) || recorded_frames < 1.0 ||
          dets.size() == static_cast<std::size_t>(std::llround(recorded_frames)));
     if (cache_ok) {
-        // Old caches contain timestamps from the configured (often 25 Hz) rate.
-        // The file's actual rate owns the replay timeline; detections are pixels.
+        // The video's actual rate owns the replay timeline; detections are pixels.
         for (auto& f : dets) f.stamp = f.frame / cfg.eval.fps;
         std::cout << "loaded " << dets.size() << " frames of detections from " << cache << '\n';
     } else {
+        fs::remove(metadata);
         dets = runDetector(video, cfg, det_ms);
-        saveDetections(cache, dets);
+        if (!saveDetections(cache, dets)) throw std::runtime_error("cannot save detections: " + cache);
+        saveCacheMetadata(metadata, signature, dets.size());
         std::cout << "detected " << dets.size() << " frames, " << det_ms << " ms/frame -> " << cache << '\n';
     }
 

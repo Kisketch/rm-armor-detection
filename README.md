@@ -328,6 +328,21 @@ Six-second clips (detection overlay, 25 fps):
 ./build/autoaim_lights video/3.avi --frames 875 --clip 850:1000 --out docs/detections
 ```
 
+### Aiming accuracy: original vs overlay, side by side
+
+[`docs/detections/compare_3and4.mp4`](docs/detections/compare_3and4.mp4) (12 s,
+1920×720) stitches the two segments: left half is the untouched frame, right half
+is the HUD (`autoaim_video --render`). The HUD shows the detected plate, the
+modelled other three, the aim point at `t + t_fly` (red), the virtual impact (×),
+a gun-direction top view and the tracker state. Both halves get the same
+display-only gamma (1.6) because the recordings are dark; nothing about the
+detection changes.
+
+```bash
+./build/autoaim_video video/3.avi --out runs/cmp3 --render 850:1000
+python3 tools/make_compare_video.py     # needs ffmpeg on PATH
+```
+
 ### Simulator-in-the-loop tuning (`tools/tune_sim.py`)
 
 The simulator is deterministic per seed, so it can be used as an objective:

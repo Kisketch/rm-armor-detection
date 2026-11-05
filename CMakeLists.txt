@@ -34,6 +34,9 @@ target_link_libraries(autoaim_video PRIVATE autoaim_core)
 add_executable(autoaim_sim apps/autoaim_sim.cpp)
 target_link_libraries(autoaim_sim PRIVATE autoaim_core)
 
+add_executable(autoaim_lights apps/autoaim_lights.cpp)
+target_link_libraries(autoaim_lights PRIVATE autoaim_core)
+
 add_executable(autoaim_tests tests/test_main.cpp)
 target_link_libraries(autoaim_tests PRIVATE autoaim_core)
 

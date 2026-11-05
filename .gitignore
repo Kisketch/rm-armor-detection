@@ -6,3 +6,4 @@ out_*/
 runs/
 __pycache__/
 *.pyc
+docs/detections/*.avi

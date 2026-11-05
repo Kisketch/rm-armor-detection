@@ -309,6 +309,25 @@ Other findings:
   without costing volume: 66.6 → 66.8 and 65.4 → 65.8 at 9.9 / 9.1 hits/s.
   It stops the selector dithering at the switch boundary.
 
+### What the detector sees
+
+`autoaim_lights` dumps the three images the detector actually works on: the
+frame with accepted light bars (yellow), armour boxes (green) and a 2.5× inset;
+the binarised channel-difference mask (threshold 70); and the raw R-B
+difference ×3.
+
+| video 3, frame 875 (two plates) | video 4, frame 2625 |
+|---|---|
+| ![video 3 frame 875](docs/detections/3_f00875.png) | ![video 4 frame 2625](docs/detections/4_f02625.png) |
+
+Six-second clips (detection overlay, 25 fps):
+[video 3, frames 850-1000](docs/detections/3_lights.mp4) ·
+[video 4, frames 2600-2750](docs/detections/4_lights.mp4)
+
+```bash
+./build/autoaim_lights video/3.avi --frames 875 --clip 850:1000 --out docs/detections
+```
+
 ### Simulator-in-the-loop tuning (`tools/tune_sim.py`)
 
 The simulator is deterministic per seed, so it can be used as an objective:
@@ -367,9 +386,11 @@ noise problem. (`tools/robustness_sweep.json`)
 ```
 include/autoaim/  types, config, detector, pose, tracker, ballistics, aimer, evaluation, draw
 src/              implementations
-apps/             autoaim_video (real video + evaluation), autoaim_sim (ground-truth simulator)
+apps/             autoaim_video (real video + evaluation), autoaim_sim (ground-truth simulator),
+                  autoaim_lights (light-blob / mask dump)
 tests/            unit tests (ballistics, PnP round trip, EKF convergence)
 config/           default.yaml (every tuned value is commented)
 model/            mlp.onnx + label.txt (digit classifier from the team template)
-docs/             figures
+tools/            tune_sim.py (CEM tuning + real-video guard)
+docs/             figures, detection panels and clips, YOLO plan, backlog
 ```

@@ -73,9 +73,23 @@ cv::Vec3d RobotTracker::armorPosition(const Vec& x, int k) const {
 RobotTracker::Vec RobotTracker::predict(double t) const {
     Vec x = x_;
     const double dt = t - stamp_;
-    x[XC] += x[VXC] * dt;
-    x[YC] += x[VYC] * dt;
-    x[ZC] += x[VZC] * dt;
+    if (cfg_.singer_tau > 0) {
+        const double a = std::exp(-dt / cfg_.singer_tau);
+        const double b = cfg_.singer_tau * (1.0 - a);
+        x[XC] += x[VXC] * b;
+        x[YC] += x[VYC] * b;
+        x[ZC] += x[VZC] * b;
+    } else {
+        x[XC] += x[VXC] * dt;
+        x[YC] += x[VYC] * dt;
+        x[ZC] += x[VZC] * dt;
+    }
+    if (cfg_.ca_model > 0) {
+        x[XC] += 0.5 * x[AXC] * dt * dt;
+        x[YC] += 0.5 * x[AY] * dt * dt;
+        x[VXC] += x[AXC] * dt;
+        x[VYC] += x[AY] * dt;
+    }
     x[YAW] += x[W] * dt;
     return x;
 }
@@ -91,7 +105,7 @@ void RobotTracker::init(const ArmorObservation& obs, double stamp) {
     x_[R2] = r;
     x_[DZ] = 0;
     const double d = obs.distance;
-    const double p0[N] = {0.05 * d, 1.0, 0.05 * d, 1.0, 0.05, 0.5, 0.3, 3.0, 0.08, 0.08, 0.05};
+    const double p0[N] = {0.05 * d, 1.0, 0.05 * d, 1.0, 0.05, 0.5, 0.3, 3.0, 0.08, 0.08, 0.05, 3.0, 3.0};
     P_ = Mat::zeros();
     for (int i = 0; i < N; ++i) P_(i, i) = p0[i] * p0[i];
     stamp_ = stamp;
@@ -107,13 +121,32 @@ void RobotTracker::init(const ArmorObservation& obs, double stamp) {
 
 void RobotTracker::transition(double dt, Mat& F, Mat& Q) const {
     F = Mat::eye();
-    F(XC, VXC) = F(YC, VYC) = F(ZC, VZC) = F(YAW, W) = dt;
+    if (cfg_.singer_tau > 0) {
+        // Singer: velocity decays with tau instead of holding constant.
+        const double a = std::exp(-dt / cfg_.singer_tau);
+        const double b = cfg_.singer_tau * (1.0 - a);
+        F(XC, VXC) = F(YC, VYC) = F(ZC, VZC) = b;
+        F(VXC, VXC) = F(VYC, VYC) = F(VZC, VZC) = a;
+    } else {
+        F(XC, VXC) = F(YC, VYC) = F(ZC, VZC) = dt;
+    }
+    F(YAW, W) = dt;
+    if (cfg_.ca_model > 0) {
+        F(XC, AXC) = 0.5 * dt * dt;
+        F(VXC, AXC) = dt;
+        F(YC, AY) = 0.5 * dt * dt;
+        F(VYC, AY) = dt;
+    }
     Q = Mat::zeros();
     const double qxyz = cfg_.q_xyz * q_scale_;
     addWhiteNoiseAccel(Q, XC, qxyz, dt);
     addWhiteNoiseAccel(Q, YC, qxyz, dt);
     addWhiteNoiseAccel(Q, ZC, qxyz * 0.25, dt);
     addWhiteNoiseAccel(Q, YAW, cfg_.q_yaw, dt);
+    if (cfg_.ca_model > 0) {
+        Q(AXC, AXC) += cfg_.q_acc * dt;
+        Q(AY, AY) += cfg_.q_acc * dt;
+    }
     Q(R1, R1) += cfg_.q_r * dt;
     Q(R2, R2) += cfg_.q_r * dt;
     Q(DZ, DZ) += cfg_.q_dz * dt;
@@ -203,6 +236,8 @@ void RobotTracker::clampState() {
     x_[R2] = std::clamp(x_[R2], cfg_.min_radius, cfg_.max_radius);
     x_[DZ] = std::clamp(x_[DZ], -0.15, 0.15);
     x_[W] = std::clamp(x_[W], -20.0, 20.0);
+    x_[AXC] = std::clamp(x_[AXC], -15.0, 15.0);
+    x_[AY] = std::clamp(x_[AY], -15.0, 15.0);
     // keep yaw bounded; every comparison uses wrapped differences
     x_[YAW] = wrapAngle(x_[YAW]);
 }

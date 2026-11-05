@@ -53,7 +53,7 @@ tracker:
    tracking_thres: 3
    lost_time_thres: 0.4
    q_xyz: 1.0             # tuned (adaptive, see q_adapt_max)
-   q_yaw: 30.
+   q_yaw: 8.             # tuned: 30 -> 8, sweep in README (video3 66.8->67.2, video4 65.8->68.1)
    q_r: 1.0e-4
    q_dz: 1.0e-4
    pixel_noise: 1.0
@@ -64,6 +64,11 @@ tracker:
    max_radius: 0.4
    q_adapt_max: 20.
    nis_ema_alpha: 0.2
+   # Singer velocity damping. Tuned on the two videos (sweep in README):
+   # 0.3 s gives 66.6% / 65.4% (video 3 / video 4) vs 62.5% / 59.6% for the
+   # constant-velocity model. The synthetic simulator prefers CV because its
+   # strafing is a smooth sinusoid; the real robot reverses direction often.
+   singer_tau: 0.3
 
 ballistic:
    bullet_speed: 25.
@@ -74,6 +79,7 @@ ballistic:
 aimer:
    latency: 0.06
    side_angle_deg: 20.        # tuned: higher = fewer but surer shots
+   switch_hysteresis_deg: 3. # stay on the current plate unless the next is 3 deg better
    min_switch_omega: 1.0
    max_fire_facing_deg: 30.   # tuned: 15 -> 69% / 6.3 hits/s, 30 -> 63% / 9.0, 50 -> 58% / 10.7 (video 3)
    center_mode_omega: 12.     # armor mode matched or beat centre mode up to 10 rad/s

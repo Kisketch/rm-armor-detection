@@ -8,14 +8,24 @@ namespace autoaim {
 void GimbalSim::step(double cmd_yaw, double cmd_pitch, double dt) {
     if (!initialised) {
         yaw = cmd_yaw, pitch = cmd_pitch, initialised = true;
+        prev_yaw_ = cmd_yaw, prev_pitch_ = cmd_pitch, has_prev_ = true;
         return;
     }
+    // Optional velocity feedforward: the command's own rate is added to the
+    // first-order lag. A real gimbal that receives yaw rate as well as yaw
+    // angle behaves like this.
+    double ff_yaw = 0, ff_pitch = 0;
+    if (ff_ != 0.0 && has_prev_) {
+        ff_yaw = ff_ * wrapAngle(cmd_yaw - prev_yaw_) / dt;
+        ff_pitch = ff_ * (cmd_pitch - prev_pitch_) / dt;
+    }
+    prev_yaw_ = cmd_yaw, prev_pitch_ = cmd_pitch, has_prev_ = true;
     // integrate in 1 ms sub-steps
     const double h = 0.001;
     for (double t = 0; t < dt - 1e-9; t += h) {
         const double ey = wrapAngle(cmd_yaw - yaw), ep = cmd_pitch - pitch;
-        const double ry = std::clamp(ey / tau_, -max_rate_, max_rate_);
-        const double rp = std::clamp(ep / tau_, -max_rate_, max_rate_);
+        const double ry = std::clamp(ey / tau_ + ff_yaw, -max_rate_, max_rate_);
+        const double rp = std::clamp(ep / tau_ + ff_pitch, -max_rate_, max_rate_);
         yaw = wrapAngle(yaw + ry * h);
         pitch += rp * h;
     }
@@ -60,11 +70,23 @@ int RobotAimer::selectArmor(const RobotTracker& t, const RobotTracker::Vec& x, d
     if (std::abs(w) > cfg_.min_switch_omega) shift = (w > 0 ? 1 : -1) * cfg_.side_angle_deg * kPi / 180;
     int best = 0;
     double best_cost = 1e9;
-    for (int k = 0; k < t.armorsNum(); ++k) {
-        const double alpha = wrapAngle(t.armorYaw(x, k) - center_dir);
-        const double cost = std::abs(wrapAngle(alpha + shift));
-        if (cost < best_cost) best_cost = cost, best = k, facing = alpha;
+    double cost[8] = {1e9, 1e9, 1e9, 1e9, 1e9, 1e9, 1e9, 1e9};
+    double alpha[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+    const int n = std::min(8, t.armorsNum());
+    for (int k = 0; k < n; ++k) {
+        const double a = wrapAngle(t.armorYaw(x, k) - center_dir);
+        alpha[k] = a;
+        cost[k] = std::abs(wrapAngle(a + shift));
+        if (cost[k] < best_cost) best_cost = cost[k], best = k;
     }
+    // Hysteresis: staying on the current plate avoids dithering at the switch
+    // boundary, which costs gimbal travel and therefore shots.
+    if (cfg_.switch_hysteresis_deg > 0 && last_armor_ >= 0 && last_armor_ < n) {
+        const double margin = cfg_.switch_hysteresis_deg * kPi / 180;
+        if (cost[last_armor_] <= best_cost + margin) best = last_armor_;
+    }
+    last_armor_ = best;
+    facing = alpha[best];
     return best;
 }
 

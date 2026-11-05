@@ -75,6 +75,16 @@ struct TrackerConfig {
     // the target manoeuvres. 1 disables the adaptation.
     double q_adapt_max = 20.0;
     double nis_ema_alpha = 0.2;
+    // Singer velocity model: the target's velocity is damped with time constant
+    // tau instead of being held constant. 0 keeps the constant-velocity model.
+    // Rationale: a strafing robot reverses direction within the 0.3 s lead, and
+    // a CV extrapolation overshoots; tau ~ 1 s matches a 2 s strafe period.
+    double singer_tau = 0.0;
+    // Constant-acceleration extension for the robot centre: two extra states
+    // (AXC, AYC) appended after DZ so no existing index moves. q_acc is the
+    // jerk spectral density; 0 disables the model.
+    double ca_model = 0.0;
+    double q_acc = 2.0;
 };
 
 struct BallisticConfig {
@@ -89,6 +99,9 @@ struct BallisticConfig {
 struct AimerConfig {
     double latency = 0.06;           // s, capture -> bullet leaves the barrel
     double side_angle_deg = 20.0;    // switch early to the incoming armor (FYT2024)
+    // Keep the current plate unless the next one is better by this many degrees.
+    // Stops the selector from dithering around the switch boundary.
+    double switch_hysteresis_deg = 0.0;
     double min_switch_omega = 1.0;   // rad/s, below this no early switch
     double max_fire_facing_deg = 50; // do not fire at plates turned further away than this
     double center_mode_omega = 6.0;  // rad/s, above this aim at the robot centre
@@ -100,6 +113,9 @@ struct AimerConfig {
     // simulated gimbal
     double gimbal_tau = 0.03;        // s, first-order lag
     double gimbal_max_rate = 12.0;   // rad/s
+    // Velocity feedforward into the simulated gimbal (0 = pure P lag).
+    // Models a real gimbal that also receives the commanded yaw rate.
+    double gimbal_ff = 0.0;
 };
 
 struct EvalConfig {

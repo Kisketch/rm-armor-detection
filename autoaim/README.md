@@ -27,7 +27,7 @@ verifiable shots; **hits/s** = hits per second of video (the damage output).
 |---|---|---|---|---|
 | direct (aim at the current plate, no prediction) | 35.5% | 7.4 | 56.7%* | 11.8 |
 | point KF (constant-velocity predictor on the plate) | 29.6% | 5.5 | 43.1% | 3.5 |
-| **robot EKF (this system)** | **62.5%** | **9.0** | **59.6%** | **8.2** |
+| **robot EKF (this system)** | **67.2%** | **10.2** | **68.1%** | **9.5** |
 | oracle (cheats: aims at the plate seen at impact time) | 99.3% | 22.4 | 93.8% | 22.0 |
 
 \* At video 4's spin rate (8.3 rad/s) the 0.33 s lead is ≈ 155°, so "aim where a plate
@@ -41,19 +41,19 @@ centre; the plate's half-width is about 24 px):
 
 | horizon | no prediction | point KF | robot EKF |
 |---|---|---|---|
-| video 3, 0.12 s | 27.4 | 9.7 | **5.1** |
-| video 3, 0.20 s | 44.1 | 29.4 | **9.1** |
-| video 3, 0.32 s | 39.0 | 66.5 | **16.2** |
-| video 4, 0.20 s | 23.1 | 91.2 | **12.8** |
-| video 4, 0.32 s | 44.5 | 85.2 | **19.3** |
+| video 3, 0.12 s | 27.4 | 9.7 | **4.9** |
+| video 3, 0.20 s | 44.1 | 29.7 | **8.3** |
+| video 3, 0.32 s | 39.1 | 66.6 | **14.2** |
+| video 4, 0.20 s | 23.1 | 91.0 | **10.4** |
+| video 4, 0.32 s | 44.5 | 84.9 | **14.8** |
 
 **Recovered robot geometry.** The two videos are independent recordings, and the
 tracker recovers the same robot from both:
 
 | | r1 | r2 | dz (2nd pair height) | median ω |
 |---|---|---|---|---|
-| video 3 | 0.243 m | 0.208 m | 0.050 m | 2.6 rad/s, direction-changing |
-| video 4 | 0.239 m | 0.213 m | 0.046 m | 8.3 rad/s |
+| video 3 | 0.243 m | 0.210 m | 0.050 m | 2.6 rad/s, direction-changing |
+| video 4 | 0.239 m | 0.214 m | 0.046 m | 8.3 rad/s |
 
 ### Simulator (ground truth)
 
@@ -61,18 +61,19 @@ tracker recovers the same robot from both:
 
 | scenario | direct | point KF | **robot EKF** | robot hits/s | centre err | ω err |
 |---|---|---|---|---|---|---|
-| spin 2.1 rad/s at 5 m (like the videos) | 42.3% | 97.5% | **100.0%** | 15.0 | 3.7 cm | 0.21 rad/s |
-| fast spin 10 rad/s at 4 m | 43.2% | 37.0% | **99.6%** | 14.1 | 2.1 cm | 0.14 |
-| spin 4 rad/s, approaching 7 → 3 m | 51.8% | 44.4% | **100.0%** | 13.9 | 3.2 cm | 0.19 |
-| variable spin 0.5–4.5 rad/s at 6 m | 69.9% | 73.2% | **99.7%** | 14.5 | 4.5 cm | 0.26 |
-| swing back and forth ±3 rad/s | 64.4% | 88.7% | **100.0%** | 17.0 | 4.5 cm | 0.25 |
-| spin 3 rad/s + gentle strafe 0.3 m | 74.9% | 67.0% | **88.0%** | 13.2 | 4.3 cm | 0.29 |
-| spin 6 rad/s + hard strafe 0.5 m / 2 s | 53.6% | 14.6% | 41.8% | 5.3 | 3.2 cm | 0.70 |
-| no spin, hard strafe 0.8 m / 2 s | 14.0% | 24.5% | 19.1% | 2.5 | 7.5 cm | 1.34 |
+| spin 2.1 rad/s at 5 m (like the videos) | 42.3% | 97.5% | **99.7%** | 16.9 | 3.9 cm | 0.55 rad/s |
+| fast spin 10 rad/s at 4 m | 43.2% | 37.0% | **99.3%** | 14.4 | 2.1 cm | 0.38 |
+| spin 4 rad/s, approaching 7 → 3 m | 51.8% | 44.4% | **97.4%** | 13.2 | 3.0 cm | 0.49 |
+| variable spin 0.5–4.5 rad/s at 6 m | 69.9% | 73.2% | **94.4%** | 12.6 | 4.4 cm | 0.53 |
+| swing back and forth ±3 rad/s | 64.4% | 88.7% | **96.2%** | 16.4 | 4.2 cm | 0.55 |
+| spin 3 rad/s + gentle strafe 0.3 m | 74.9% | 67.0% | **79.3%** | 11.3 | 4.4 cm | 0.57 |
+| spin 6 rad/s + hard strafe 0.5 m / 2 s | 53.6% | 14.6% | 43.2% | 5.8 | 3.5 cm | 0.97 |
+| no spin, hard strafe 0.8 m / 2 s | 14.0% | 24.5% | 14.6% | 2.1 | 10.7 cm | 1.68 |
 
 The last two rows are open problems (see "Limitations"): their sideways
 acceleration is 5–8 m/s². Over a 0.33 s lead, a constant-velocity prediction is
-then off by 0.27–0.43 m, which is several plate widths.
+then off by 0.27–0.43 m, which is several plate widths. Singer damping helps the
+real videos but not these sinusoids (see "Tuning log").
 
 ### Timing (single thread, Windows, MSVC Release)
 
@@ -237,6 +238,47 @@ with the median prediction error at 0.32 s in brackets:
 | C + measured yaw noise (σ ≈ 6°) | 53.6% (17.8) | 50.0% (22.5) |
 | D + stiff centre + adaptive Q | 56.3% (16.2) | 54.2% (19.3) |
 | E + fire only at plates within 30° (final) | **62.5%** (16.2) | **59.6%** (19.3) |
+| F + Singer velocity damping (τ = 0.3 s) | **66.6%** (14.2) | **65.4%** (16.7) |
+| G + plate-switch hysteresis (3°) | **66.8%** (14.2) | **65.8%** (16.7) |
+| H + yaw process noise 30 → 8 | **67.2%** (14.2) | **68.1%** (14.8) |
+
+Step F sweep on both videos (robot-EKF hit rate / median 0.32 s error):
+
+| `singer_tau` | video 3 | video 4 |
+|---|---|---|
+| 0 (constant velocity) | 62.5% (16.2 px) | 59.6% (19.3 px) |
+| 0.30 | **66.6%** (14.2) | **65.4%** (16.7) |
+| 0.35 | 66.7% (14.2) | 64.7% (16.9) |
+| 0.40 | 66.8% (14.5) | 64.1% (16.9) |
+| 0.50 | 66.6% (14.5) | 64.0% (17.3) |
+| 0.80 | 65.1% (15.0) | 62.9% (17.8) |
+| 1.00 | 64.6% (15.1) | 62.3% (18.3) |
+
+Why damping helps here: a real infantry reverses translation direction and spin
+direction within the 0.33 s lead, so a constant-velocity extrapolation
+systematically overshoots. In the synthetic simulator the strafing is a smooth
+sinusoid, which CV predicts better than a damped model — the sim mean drops
+from 80.0% to 78.0% while both real videos gain 4–6 pp. Real-video evidence wins:
+the sim's motion model is the less faithful one.
+
+Step H sweep (`q_yaw`, yaw process noise; the plateau is 5–15, so the choice is not
+a single-point fit):
+
+| `q_yaw` | video 3 | video 4 |
+|---|---|---|
+| 5 | 67.1% | 68.0% |
+| 8 | **67.2%** | **68.1%** |
+| 10 | 66.8% | 67.7% |
+| 15 | 67.2% | 67.3% |
+| 20 | 66.9% | 66.3% |
+| 30 (previous) | 66.8% | 65.8% |
+| 40 | 66.2% | 65.0% |
+| 50 | 65.7% | 64.8% |
+
+Why: a per-shot analysis of every miss (`docs/miss_analysis.md`) shows the misses
+are dominated by yaw-rate jitter, not by a systematic bias — aimed-at-plate
+centres are correct (median `off_u` ≈ 0 on hits), the error direction follows the
+spin sign, and 40–49% of the misses miss by less than half a panel width.
 
 Other findings:
 
@@ -258,6 +300,117 @@ Other findings:
   ≈ 270–380, 550–680, 1250–1350; visible in the raw plate motion). This
   direction-changing, variable-speed spin is why its ceiling is lower than a
   steady spinner's.
+* **The adaptive-Q term never engages on these videos.** `q_adapt_max` 8 / 20 / 40
+  give byte-identical runs (66.6% on video 3): the position NIS sits at its
+  expected value (≈3), so `clamp(nis/3, 1, max)` stays at 1. Step D's gain
+  therefore comes from the stiff-centre change, not from the adaptation. Making
+  it useful would need a different trigger (e.g. NIS − 3) — untested.
+* **Gimbal velocity feedforward — a hardware ask, measured in simulation.**
+  The gimbal model is a first-order lag; adding the commanded yaw rate as
+  feedforward (`gimbal_ff`, evaluation-only, default 0) lifts the hard-strafe
+  scenario 43.8% → **51.1%** at ff = 1.0 and the no-spin strafe 14.4% → 18.0%
+  at ff = 0.5 (mean 78.0% → 79.8%). The vision side cannot buy this: it needs
+  the gimbal controller to accept a rate term, which is an electronics change.
+* **Constant-acceleration states (CA) — tested, rejected.** Two extra states
+  (`AXC`, `AYC`, `ca_model`, `q_acc`) were appended so no existing index moves.
+  At `q_acc = 10` the simulator improves (mean 78.0% → 79.6%, hard strafe
+  43.8% → 45.4%), but both real videos regress hard: 66.6% → 61.3% (video 3) and
+  65.4% → 58.7% (video 4). At 25 fps the acceleration is not observable from
+  corner positions with ~1 px noise and a biased yaw; the filter amplifies
+  detection noise instead. The code stays behind `ca_model: 0` as a tested
+  option, not as a default.
+
+* **Hit rate alone is gameable - the shipped point is chosen on hits/s.** The
+  early-switch angle raises the hit rate monotonically while destroying volume:
+  video 4, `side_angle` 20° → 45° gives 65.4% → 71.9% but 9.2 → 5.3 hits/s.
+  The fire window does the same: `max_fire_facing` 20° → 69.6% / 8.0 hits/s,
+  30° → 66.6% / 9.9. Both are dominated by the shipped setting in damage per
+  second, so the larger angles stay off.
+* **Plate-switch hysteresis** (3°) is the one knob that improved both videos
+  without costing volume: 66.6 → 66.8 and 65.4 → 65.8 at 9.9 / 9.1 hits/s.
+  It stops the selector dithering at the switch boundary.
+
+### What the detector sees
+
+`autoaim_lights` dumps the three images the detector actually works on: the
+frame with accepted light bars (yellow), armour boxes (green) and a 2.5× inset;
+the binarised channel-difference mask (threshold 70); and the raw R-B
+difference ×3.
+
+| video 3, frame 875 (two plates) | video 4, frame 2625 |
+|---|---|
+| ![video 3 frame 875](docs/detections/3_f00875.png) | ![video 4 frame 2625](docs/detections/4_f02625.png) |
+
+Six-second clips (detection overlay, 25 fps):
+[video 3, frames 850-1000](docs/detections/3_lights.mp4) ·
+[video 4, frames 2600-2750](docs/detections/4_lights.mp4)
+
+```bash
+./build/autoaim_lights video/3.avi --frames 875 --clip 850:1000 --out docs/detections
+```
+
+### Aiming accuracy: original vs overlay, side by side
+
+[`docs/detections/compare_3and4.mp4`](docs/detections/compare_3and4.mp4) (12 s,
+1920×720) stitches the two segments: left half is the untouched frame, right half
+is the HUD (`autoaim_video --render`). The HUD shows the detected plate, the
+modelled other three, the aim point at `t + t_fly` (red), the virtual impact (×),
+a gun-direction top view and the tracker state. Both halves get the same
+display-only gamma (1.6) because the recordings are dark; nothing about the
+detection changes.
+
+```bash
+./build/autoaim_video video/3.avi --out runs/cmp3 --render 850:1000
+python3 tools/make_compare_video.py     # needs ffmpeg on PATH
+```
+
+Full-length versions (every frame, 1920×720, H.264) are built with the same tool:
+
+```bash
+./build/autoaim_video video/3.avi --out runs/cmp3 --render 0:2208
+./build/autoaim_video video/4.avi --out runs/cmp4 --render 0:3415
+python3 tools/make_compare_video.py --full
+```
+
+They are ~47 MB / 75 MB / 123 MB (3, 4, concatenated), too large for the repo, so
+they ship in the local package next to the source videos. Per-shot diagnostics of
+where the misses land: [`docs/miss_analysis.md`](docs/miss_analysis.md).
+```
+
+### Simulator-in-the-loop tuning (`tools/tune_sim.py`)
+
+The simulator is deterministic per seed, so it can be used as an objective:
+8 scenarios × N seeds, 8 tunable parameters (`q_xyz`, `q_yaw`, `q_adapt_max`,
+`nis_alpha`, `r_yaw`, `max_fire_facing`, `side_angle`, `center_mode_omega`),
+cross-entropy search, objective `0.6·mean + 0.4·worst + 0.05·tracking` minus a
+penalty for buying hit rate by firing less. 64 evaluations:
+
+| | baseline | sim-tuned |
+|---|---|---|
+| mean hit | 79.9% | **83.4%** |
+| worst scenario | 17.9% | **28.9%** |
+| hits/s | 11.5 | 12.7 |
+
+**The real-video guard rejected it**: video 3 dropped from 62.5% to 53.9%
+(−8.6 pp). The search had pushed `q_xyz` from 1.0 to 16.9; with the simulator's
+clean Gaussian corner noise that tracks better, but on real detections (yaw
+bias, glow, drop-outs) it makes the filter chase noise. The tool therefore
+refuses to ship on simulator numbers alone: `--guard-exe autoaim_video
+--guard-video video/3.avi --guard-tolerance 1` re-evaluates on real data and
+exits 2 on regression. The Singer model above was found the other way round —
+by a real-video sweep, then kept despite the simulator disliking it.
+
+Robustness of the shipped config (8 scenarios × 3 seeds, `singer_tau = 0.3`):
+
+| corner noise | detection dropout | mean hit | worst scenario | hits/s |
+|---|---|---|---|---|
+| 0.3 px | 0% | 78.6% | 16.7% | 11.9 |
+| 0.7 px | 5% (default) | 77.6% | 15.4% | 11.2 |
+| 1.5 px | 15% | 73.7% | 15.5% | 9.3 |
+
+5× the corner noise and 3× the drop-out cost ~5 pp and ~2 hits/s, with no cliff —
+and the worst scenario stays the hard strafe, i.e. it is a model problem, not a
+noise problem. (`tools/robustness_sweep.json`)
 
 ## Limitations / next steps
 
@@ -265,9 +418,11 @@ Other findings:
    treated as fixed at the gimbal origin. A real robot needs the camera→gimbal
    extrinsics and the IMU attitude at capture time (the world frame here is
    already gravity-aligned, so this is one extra rotation).
-2. **Hard strafing** (≥ 5 m/s²) defeats any constant-velocity model at 0.33 s
-   lead. Next options: a constant-acceleration / IMM model (FaterYU lists CA
-   as a planned change), or aiming at the middle of the strafe.
+2. **Hard strafing** (≥ 5 m/s²) still defeats the 0.33 s lead: the last two
+   simulator rows sit at 44% and 14%. Singer damping (τ = 0.3 s) fixed part of
+   it on the real videos but is not a motion-model solution; the next options
+   are a constant-acceleration / IMM model, or aiming at the middle of the
+   strafe.
 3. **25 fps video.** A real camera at 100–200 fps would cut prediction noise
    considerably. The tracker and aimer are time-stamped and frame-rate independent.
 4. **Not included:** serial protocol to the MCU, ROS 2 nodes, energy-mechanism (buff)
@@ -280,9 +435,17 @@ Other findings:
 ```
 include/autoaim/  types, config, detector, pose, tracker, ballistics, aimer, evaluation, draw
 src/              implementations
-apps/             autoaim_video (real video + evaluation), autoaim_sim (ground-truth simulator)
+apps/             autoaim_video (real video + evaluation), autoaim_sim (ground-truth simulator),
+                  autoaim_lights (light-blob / mask dump)
 tests/            unit tests (ballistics, PnP round trip, EKF convergence)
 config/           default.yaml (every tuned value is commented)
 model/            mlp.onnx + label.txt (digit classifier from the team template)
-docs/             figures
+tools/            tune_sim.py (CEM tuning + real-video guard)
+docs/             figures, detection panels and clips, YOLO plan, backlog
 ```
+
+## License
+
+MIT — see [`LICENSE`](LICENSE). Third-party components keep their own terms:
+`chenjunnn/rm_auto_aim` (MIT) and `CSU-FYT-Vision/FYT2024_vision` (Apache-2.0);
+the exact mapping is in "What was taken from where" above.

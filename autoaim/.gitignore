@@ -3,3 +3,7 @@ out/
 out_*/
 *.avi
 *.zip
+runs/
+__pycache__/
+*.pyc
+docs/detections/*.avi

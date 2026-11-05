@@ -38,13 +38,16 @@ struct AimCommand {
 // visibly worse than "waiting at the centre".
 class GimbalSim {
 public:
-    GimbalSim(double tau, double max_rate) : tau_(tau), max_rate_(max_rate) {}
+    GimbalSim(double tau, double max_rate, double ff_gain = 0.0)
+        : tau_(tau), max_rate_(max_rate), ff_(ff_gain) {}
     void step(double cmd_yaw, double cmd_pitch, double dt);
     double yaw = 0, pitch = 0;
     bool initialised = false;
 
 private:
-    double tau_, max_rate_;
+    double tau_, max_rate_, ff_ = 0.0;
+    double prev_yaw_ = 0, prev_pitch_ = 0;
+    bool has_prev_ = false;
 };
 
 bool onTarget(const GimbalSim& g, const AimCommand& cmd, ArmorType type, double scale);
@@ -58,6 +61,7 @@ private:
     int selectArmor(const RobotTracker& t, const RobotTracker::Vec& x, double& facing) const;
     AimerConfig cfg_;
     const Ballistics& ball_;
+    mutable int last_armor_ = -1;  // plate chosen last frame, for switch hysteresis
 };
 
 class PointAimer {

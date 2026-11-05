@@ -97,6 +97,7 @@ Config Config::load(const std::string& path) {
     get(t, "max_radius", c.tracker.max_radius);
     get(t, "q_adapt_max", c.tracker.q_adapt_max);
     get(t, "nis_ema_alpha", c.tracker.nis_ema_alpha);
+    get(t, "singer_tau", c.tracker.singer_tau);
 
     const auto b = fs["ballistic"];
     get(b, "bullet_speed", c.ballistic.bullet_speed);
@@ -135,6 +136,7 @@ bool setParam(Config& c, const std::string& key, double v) {
     else if (key == "pixel_noise") c.tracker.pixel_noise = v;
     else if (key == "q_adapt_max") c.tracker.q_adapt_max = v;
     else if (key == "nis_alpha") c.tracker.nis_ema_alpha = v;
+    else if (key == "singer_tau") c.tracker.singer_tau = v;
     else if (key == "max_match_distance") c.tracker.max_match_distance = v;
     else if (key == "side_angle") c.aimer.side_angle_deg = v;
     else if (key == "max_fire_facing") c.aimer.max_fire_facing_deg = v;

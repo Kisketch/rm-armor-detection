@@ -26,7 +26,7 @@ verifiable shots; **hits/s** = hits per second of video (the damage output).
 |---|---|---|---|---|
 | direct (aim at the current plate, no prediction) | 35.5% | 7.4 | 56.7%* | 11.8 |
 | point KF (constant-velocity predictor on the plate) | 29.6% | 5.5 | 43.1% | 3.5 |
-| **robot EKF (this system)** | **62.5%** | **9.0** | **59.6%** | **8.2** |
+| **robot EKF (this system)** | **66.6%** | **9.9** | **65.4%** | **9.2** |
 | oracle (cheats: aims at the plate seen at impact time) | 99.3% | 22.4 | 93.8% | 22.0 |
 
 \* At video 4's spin rate (8.3 rad/s) the 0.33 s lead is ≈ 155°, so "aim where a plate
@@ -40,19 +40,19 @@ centre; the plate's half-width is about 24 px):
 
 | horizon | no prediction | point KF | robot EKF |
 |---|---|---|---|
-| video 3, 0.12 s | 27.4 | 9.7 | **5.1** |
-| video 3, 0.20 s | 44.1 | 29.4 | **9.1** |
-| video 3, 0.32 s | 39.0 | 66.5 | **16.2** |
-| video 4, 0.20 s | 23.1 | 91.2 | **12.8** |
-| video 4, 0.32 s | 44.5 | 85.2 | **19.3** |
+| video 3, 0.12 s | 27.4 | 9.7 | **4.7** |
+| video 3, 0.20 s | 44.1 | 29.7 | **8.3** |
+| video 3, 0.32 s | 39.1 | 66.6 | **14.2** |
+| video 4, 0.20 s | 23.1 | 91.0 | **11.7** |
+| video 4, 0.32 s | 44.5 | 84.9 | **16.7** |
 
 **Recovered robot geometry.** The two videos are independent recordings, and the
 tracker recovers the same robot from both:
 
 | | r1 | r2 | dz (2nd pair height) | median ω |
 |---|---|---|---|---|
-| video 3 | 0.243 m | 0.208 m | 0.050 m | 2.6 rad/s, direction-changing |
-| video 4 | 0.239 m | 0.213 m | 0.046 m | 8.3 rad/s |
+| video 3 | 0.243 m | 0.210 m | 0.050 m | 2.6 rad/s, direction-changing |
+| video 4 | 0.239 m | 0.214 m | 0.046 m | 8.3 rad/s |
 
 ### Simulator (ground truth)
 
@@ -60,18 +60,19 @@ tracker recovers the same robot from both:
 
 | scenario | direct | point KF | **robot EKF** | robot hits/s | centre err | ω err |
 |---|---|---|---|---|---|---|
-| spin 2.1 rad/s at 5 m (like the videos) | 42.3% | 97.5% | **100.0%** | 15.0 | 3.7 cm | 0.21 rad/s |
-| fast spin 10 rad/s at 4 m | 43.2% | 37.0% | **99.6%** | 14.1 | 2.1 cm | 0.14 |
-| spin 4 rad/s, approaching 7 → 3 m | 51.8% | 44.4% | **100.0%** | 13.9 | 3.2 cm | 0.19 |
-| variable spin 0.5–4.5 rad/s at 6 m | 69.9% | 73.2% | **99.7%** | 14.5 | 4.5 cm | 0.26 |
-| swing back and forth ±3 rad/s | 64.4% | 88.7% | **100.0%** | 17.0 | 4.5 cm | 0.25 |
-| spin 3 rad/s + gentle strafe 0.3 m | 74.9% | 67.0% | **88.0%** | 13.2 | 4.3 cm | 0.29 |
-| spin 6 rad/s + hard strafe 0.5 m / 2 s | 53.6% | 14.6% | 41.8% | 5.3 | 3.2 cm | 0.70 |
-| no spin, hard strafe 0.8 m / 2 s | 14.0% | 24.5% | 19.1% | 2.5 | 7.5 cm | 1.34 |
+| spin 2.1 rad/s at 5 m (like the videos) | 42.3% | 97.5% | **99.7%** | 16.9 | 3.9 cm | 0.55 rad/s |
+| fast spin 10 rad/s at 4 m | 43.2% | 37.0% | **99.3%** | 14.4 | 2.1 cm | 0.38 |
+| spin 4 rad/s, approaching 7 → 3 m | 51.8% | 44.4% | **97.4%** | 13.2 | 3.0 cm | 0.49 |
+| variable spin 0.5–4.5 rad/s at 6 m | 69.9% | 73.2% | **94.4%** | 12.6 | 4.4 cm | 0.53 |
+| swing back and forth ±3 rad/s | 64.4% | 88.7% | **96.2%** | 16.4 | 4.2 cm | 0.55 |
+| spin 3 rad/s + gentle strafe 0.3 m | 74.9% | 67.0% | **78.9%** | 11.1 | 4.4 cm | 0.57 |
+| spin 6 rad/s + hard strafe 0.5 m / 2 s | 53.6% | 14.6% | 43.8% | 5.8 | 3.5 cm | 0.97 |
+| no spin, hard strafe 0.8 m / 2 s | 14.0% | 24.5% | 14.4% | 2.0 | 10.7 cm | 1.68 |
 
 The last two rows are open problems (see "Limitations"): their sideways
 acceleration is 5–8 m/s². Over a 0.33 s lead, a constant-velocity prediction is
-then off by 0.27–0.43 m, which is several plate widths.
+then off by 0.27–0.43 m, which is several plate widths. Singer damping helps the
+real videos but not these sinusoids (see "Tuning log").
 
 ### Timing (single thread, Windows, MSVC Release)
 
@@ -236,6 +237,26 @@ with the median prediction error at 0.32 s in brackets:
 | C + measured yaw noise (σ ≈ 6°) | 53.6% (17.8) | 50.0% (22.5) |
 | D + stiff centre + adaptive Q | 56.3% (16.2) | 54.2% (19.3) |
 | E + fire only at plates within 30° (final) | **62.5%** (16.2) | **59.6%** (19.3) |
+| F + Singer velocity damping (τ = 0.3 s) | **66.6%** (14.2) | **65.4%** (16.7) |
+
+Step F sweep on both videos (robot-EKF hit rate / median 0.32 s error):
+
+| `singer_tau` | video 3 | video 4 |
+|---|---|---|
+| 0 (constant velocity) | 62.5% (16.2 px) | 59.6% (19.3 px) |
+| 0.30 | **66.6%** (14.2) | **65.4%** (16.7) |
+| 0.35 | 66.7% (14.2) | 64.7% (16.9) |
+| 0.40 | 66.8% (14.5) | 64.1% (16.9) |
+| 0.50 | 66.6% (14.5) | 64.0% (17.3) |
+| 0.80 | 65.1% (15.0) | 62.9% (17.8) |
+| 1.00 | 64.6% (15.1) | 62.3% (18.3) |
+
+Why damping helps here: a real infantry reverses translation direction and spin
+direction within the 0.33 s lead, so a constant-velocity extrapolation
+systematically overshoots. In the synthetic simulator the strafing is a smooth
+sinusoid, which CV predicts better than a damped model — the sim mean drops
+from 80.0% to 78.0% while both real videos gain 4–6 pp. Real-video evidence wins:
+the sim's motion model is the less faithful one.
 
 Other findings:
 
@@ -258,15 +279,40 @@ Other findings:
   direction-changing, variable-speed spin is why its ceiling is lower than a
   steady spinner's.
 
+### Simulator-in-the-loop tuning (`tools/tune_sim.py`)
+
+The simulator is deterministic per seed, so it can be used as an objective:
+8 scenarios × N seeds, 8 tunable parameters (`q_xyz`, `q_yaw`, `q_adapt_max`,
+`nis_alpha`, `r_yaw`, `max_fire_facing`, `side_angle`, `center_mode_omega`),
+cross-entropy search, objective `0.6·mean + 0.4·worst + 0.05·tracking` minus a
+penalty for buying hit rate by firing less. 64 evaluations:
+
+| | baseline | sim-tuned |
+|---|---|---|
+| mean hit | 79.9% | **83.4%** |
+| worst scenario | 17.9% | **28.9%** |
+| hits/s | 11.5 | 12.7 |
+
+**The real-video guard rejected it**: video 3 dropped from 62.5% to 53.9%
+(−8.6 pp). The search had pushed `q_xyz` from 1.0 to 16.9; with the simulator's
+clean Gaussian corner noise that tracks better, but on real detections (yaw
+bias, glow, drop-outs) it makes the filter chase noise. The tool therefore
+refuses to ship on simulator numbers alone: `--guard-exe autoaim_video
+--guard-video video/3.avi --guard-tolerance 1` re-evaluates on real data and
+exits 2 on regression. The Singer model above was found the other way round —
+by a real-video sweep, then kept despite the simulator disliking it.
+
 ## Limitations / next steps
 
 1. **Camera calibration.** Intrinsics are assumed (see above), and the camera is
    treated as fixed at the gimbal origin. A real robot needs the camera→gimbal
    extrinsics and the IMU attitude at capture time (the world frame here is
    already gravity-aligned, so this is one extra rotation).
-2. **Hard strafing** (≥ 5 m/s²) defeats any constant-velocity model at 0.33 s
-   lead. Next options: a constant-acceleration / IMM model (FaterYU lists CA
-   as a planned change), or aiming at the middle of the strafe.
+2. **Hard strafing** (≥ 5 m/s²) still defeats the 0.33 s lead: the last two
+   simulator rows sit at 44% and 14%. Singer damping (τ = 0.3 s) fixed part of
+   it on the real videos but is not a motion-model solution; the next options
+   are a constant-acceleration / IMM model, or aiming at the middle of the
+   strafe.
 3. **25 fps video.** A real camera at 100–200 fps would cut prediction noise
    considerably. The tracker and aimer are time-stamped and frame-rate independent.
 4. **Not included:** serial protocol to the MCU, ROS 2 nodes, energy-mechanism (buff)

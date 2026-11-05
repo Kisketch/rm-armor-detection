@@ -73,9 +73,17 @@ cv::Vec3d RobotTracker::armorPosition(const Vec& x, int k) const {
 RobotTracker::Vec RobotTracker::predict(double t) const {
     Vec x = x_;
     const double dt = t - stamp_;
-    x[XC] += x[VXC] * dt;
-    x[YC] += x[VYC] * dt;
-    x[ZC] += x[VZC] * dt;
+    if (cfg_.singer_tau > 0) {
+        const double a = std::exp(-dt / cfg_.singer_tau);
+        const double b = cfg_.singer_tau * (1.0 - a);
+        x[XC] += x[VXC] * b;
+        x[YC] += x[VYC] * b;
+        x[ZC] += x[VZC] * b;
+    } else {
+        x[XC] += x[VXC] * dt;
+        x[YC] += x[VYC] * dt;
+        x[ZC] += x[VZC] * dt;
+    }
     x[YAW] += x[W] * dt;
     return x;
 }
@@ -107,7 +115,16 @@ void RobotTracker::init(const ArmorObservation& obs, double stamp) {
 
 void RobotTracker::transition(double dt, Mat& F, Mat& Q) const {
     F = Mat::eye();
-    F(XC, VXC) = F(YC, VYC) = F(ZC, VZC) = F(YAW, W) = dt;
+    if (cfg_.singer_tau > 0) {
+        // Singer: velocity decays with tau instead of holding constant.
+        const double a = std::exp(-dt / cfg_.singer_tau);
+        const double b = cfg_.singer_tau * (1.0 - a);
+        F(XC, VXC) = F(YC, VYC) = F(ZC, VZC) = b;
+        F(VXC, VXC) = F(VYC, VYC) = F(VZC, VZC) = a;
+    } else {
+        F(XC, VXC) = F(YC, VYC) = F(ZC, VZC) = dt;
+    }
+    F(YAW, W) = dt;
     Q = Mat::zeros();
     const double qxyz = cfg_.q_xyz * q_scale_;
     addWhiteNoiseAccel(Q, XC, qxyz, dt);

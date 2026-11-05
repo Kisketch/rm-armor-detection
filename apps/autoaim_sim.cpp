@@ -72,6 +72,7 @@ Light lightFrom(const cv::Point2f& top, const cv::Point2f& bottom) {
 int main(int argc, char** argv) {
     std::string config_path = std::string(AUTOAIM_ROOT) + "/config/default.yaml";
     double fps = 25, noise = 0.7, seconds = 20, dropout = 0.05;
+    int seed = 0;
     std::vector<std::pair<std::string, double>> sets;
     for (int i = 1; i + 1 < argc; ++i) {
         const std::string a = argv[i];
@@ -80,6 +81,7 @@ int main(int argc, char** argv) {
         else if (a == "--noise") noise = std::stod(argv[++i]);
         else if (a == "--seconds") seconds = std::stod(argv[++i]);
         else if (a == "--dropout") dropout = std::stod(argv[++i]);
+        else if (a == "--seed") seed = std::stoi(argv[++i]);
         else if (a == "--set") {
             const std::string kv = argv[++i];
             const auto eq = kv.find('=');
@@ -130,14 +132,14 @@ int main(int argc, char** argv) {
     }
 
     std::printf("fps %.0f, corner noise %.2f px, dropout %.0f%%, %.0f s per scenario, fx %.0f, latency %.0f ms, "
-                "bullet %.0f m/s\n\n",
+                "bullet %.0f m/s, seed %d\n\n",
                 fps, noise, dropout * 100, seconds, cfg.camera.fx, cfg.aimer.latency * 1000,
-                cfg.ballistic.bullet_speed);
+                cfg.ballistic.bullet_speed, 42 + seed);
     std::printf("| scenario | direct hit%% | point KF hit%% | robot EKF hit%% | robot hits/s | centre err cm | "
                 "|w| err rad/s | radius err cm | tracking %% |\n|---|---|---|---|---|---|---|---|---|\n");
 
     for (const auto& sc : scenarios) {
-        std::mt19937 rng(42);
+        std::mt19937 rng(42 + static_cast<unsigned>(seed));
         std::normal_distribution<double> px_noise(0.0, noise);
         std::uniform_real_distribution<double> uni(0, 1);
         const int frames = static_cast<int>(seconds * fps);

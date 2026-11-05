@@ -75,6 +75,11 @@ struct TrackerConfig {
     // the target manoeuvres. 1 disables the adaptation.
     double q_adapt_max = 20.0;
     double nis_ema_alpha = 0.2;
+    // Singer velocity model: the target's velocity is damped with time constant
+    // tau instead of being held constant. 0 keeps the constant-velocity model.
+    // Rationale: a strafing robot reverses direction within the 0.3 s lead, and
+    // a CV extrapolation overshoots; tau ~ 1 s matches a 2 s strafe period.
+    double singer_tau = 0.0;
 };
 
 struct BallisticConfig {

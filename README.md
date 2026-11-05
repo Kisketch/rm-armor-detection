@@ -91,6 +91,16 @@ impact time. Green ×: where the virtual bullet landed (a hit). Top view (right)
 the red plate is the one chosen for impact, the back plate now, which will have
 rotated to the front 0.35 s later.*
 
+## Baseline snapshot
+
+Every number in this README is frozen in [`BASELINE.md`](BASELINE.md), together with the exact
+environment (OS / MSVC / OpenCV / commit), the commands to reproduce it, and the raw outputs in
+[`reports/`](reports/). Regression thresholds live in the same file.
+
+> Measured: the two-video evaluation is bit-for-bit reproducible (3.avi 62.5%, 4.avi 59.6%);
+> the simulator drifts by up to 3 percentage points across OS/OpenCV versions, so compare it only
+> on the same machine + same binary.
+
 ## What was taken from where
 
 | idea | source (license) | here |

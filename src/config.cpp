@@ -119,6 +119,7 @@ Config Config::load(const std::string& path) {
     get(a, "gimbal_tau", c.aimer.gimbal_tau);
     get(a, "gimbal_max_rate", c.aimer.gimbal_max_rate);
     get(a, "gimbal_ff", c.aimer.gimbal_ff);
+    get(a, "switch_hysteresis_deg", c.aimer.switch_hysteresis_deg);
 
     const auto e = fs["eval"];
     get(e, "fps", c.eval.fps);
@@ -151,6 +152,7 @@ bool setParam(Config& c, const std::string& key, double v) {
     else if (key == "fire_sigma") c.aimer.fire_sigma_scale = v;
     else if (key == "gimbal_tau") c.aimer.gimbal_tau = v;
     else if (key == "gimbal_ff") c.aimer.gimbal_ff = v;
+    else if (key == "switch_hysteresis") c.aimer.switch_hysteresis_deg = v;
     else if (key == "armor_pitch") c.pose.armor_pitch_deg = v;
     else if (key == "optimize_yaw") c.pose.optimize_yaw = v != 0;
     else if (key == "yaw_gain") c.pose.yaw_gain = v;

@@ -99,6 +99,9 @@ struct BallisticConfig {
 struct AimerConfig {
     double latency = 0.06;           // s, capture -> bullet leaves the barrel
     double side_angle_deg = 20.0;    // switch early to the incoming armor (FYT2024)
+    // Keep the current plate unless the next one is better by this many degrees.
+    // Stops the selector from dithering around the switch boundary.
+    double switch_hysteresis_deg = 0.0;
     double min_switch_omega = 1.0;   // rad/s, below this no early switch
     double max_fire_facing_deg = 50; // do not fire at plates turned further away than this
     double center_mode_omega = 6.0;  // rad/s, above this aim at the robot centre

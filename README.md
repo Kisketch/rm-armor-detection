@@ -302,6 +302,18 @@ refuses to ship on simulator numbers alone: `--guard-exe autoaim_video
 exits 2 on regression. The Singer model above was found the other way round —
 by a real-video sweep, then kept despite the simulator disliking it.
 
+Robustness of the shipped config (8 scenarios × 3 seeds, `singer_tau = 0.3`):
+
+| corner noise | detection dropout | mean hit | worst scenario | hits/s |
+|---|---|---|---|---|
+| 0.3 px | 0% | 78.6% | 16.7% | 11.9 |
+| 0.7 px | 5% (default) | 77.6% | 15.4% | 11.2 |
+| 1.5 px | 15% | 73.7% | 15.5% | 9.3 |
+
+5× the corner noise and 3× the drop-out cost ~5 pp and ~2 hits/s, with no cliff —
+and the worst scenario stays the hard strafe, i.e. it is a model problem, not a
+noise problem. (`tools/robustness_sweep.json`)
+
 ## Limitations / next steps
 
 1. **Camera calibration.** Intrinsics are assumed (see above), and the camera is

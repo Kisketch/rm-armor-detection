@@ -112,6 +112,15 @@ int main(int argc, char** argv) {
     }
 
     Config cfg = Config::load(config_path);
+    cv::VideoCapture probe(video);
+    if (!probe.isOpened()) {
+        std::cerr << "cannot open video " << video << '\n';
+        return 1;
+    }
+    const double recorded_fps = probe.get(cv::CAP_PROP_FPS);
+    if (std::isfinite(recorded_fps) && recorded_fps >= 1.0 && recorded_fps <= 1000.0)
+        cfg.eval.fps = recorded_fps;
+    const double recorded_frames = probe.get(cv::CAP_PROP_FRAME_COUNT);
     if (!camera_path.empty()) {
         cv::FileStorage camera_file(camera_path, cv::FileStorage::READ);
         const cv::FileNode camera_node = camera_file["camera"];
@@ -134,11 +143,6 @@ int main(int argc, char** argv) {
                 std::cerr << "camera file contains invalid distortion coefficients\n";
                 return 1;
             }
-        cv::VideoCapture probe(video);
-        if (!probe.isOpened()) {
-            std::cerr << "cannot open video " << video << '\n';
-            return 1;
-        }
         const int width = static_cast<int>(probe.get(cv::CAP_PROP_FRAME_WIDTH));
         const int height = static_cast<int>(probe.get(cv::CAP_PROP_FRAME_HEIGHT));
         if (width != cfg.camera.width || height != cfg.camera.height) {
@@ -161,7 +165,13 @@ int main(int argc, char** argv) {
 
     std::vector<FrameDetections> dets;
     double det_ms = 0;
-    if (!redetect && loadDetections(cache, dets) && !dets.empty()) {
+    const bool cache_ok = !redetect && loadDetections(cache, dets) && !dets.empty() &&
+        (!std::isfinite(recorded_frames) || recorded_frames < 1.0 ||
+         dets.size() == static_cast<std::size_t>(std::llround(recorded_frames)));
+    if (cache_ok) {
+        // Old caches contain timestamps from the configured (often 25 Hz) rate.
+        // The file's actual rate owns the replay timeline; detections are pixels.
+        for (auto& f : dets) f.stamp = f.frame / cfg.eval.fps;
         std::cout << "loaded " << dets.size() << " frames of detections from " << cache << '\n';
     } else {
         dets = runDetector(video, cfg, det_ms);

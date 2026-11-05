@@ -185,6 +185,12 @@ images from another camera would not calibrate those recordings.
 
 ### Build and evaluation
 
+`autoaim_video` reads the recording's FPS metadata for timestamps, tracking,
+prediction horizons, virtual shots, and output video. When metadata is absent or
+invalid, it uses `eval.fps` from the config. A cached detection file with the
+wrong frame count is regenerated; valid cached detections are retimed to the
+recording's FPS before evaluation.
+
 Requirements: CMake ≥ 3.16, a C++17 compiler, OpenCV 4 (core, imgproc,
 imgcodecs, videoio, highgui, calib3d, dnn).
 

@@ -278,6 +278,19 @@ Other findings:
   ≈ 270–380, 550–680, 1250–1350; visible in the raw plate motion). This
   direction-changing, variable-speed spin is why its ceiling is lower than a
   steady spinner's.
+* **The adaptive-Q term never engages on these videos.** `q_adapt_max` 8 / 20 / 40
+  give byte-identical runs (66.6% on video 3): the position NIS sits at its
+  expected value (≈3), so `clamp(nis/3, 1, max)` stays at 1. Step D's gain
+  therefore comes from the stiff-centre change, not from the adaptation. Making
+  it useful would need a different trigger (e.g. NIS − 3) — untested.
+* **Constant-acceleration states (CA) — tested, rejected.** Two extra states
+  (`AXC`, `AYC`, `ca_model`, `q_acc`) were appended so no existing index moves.
+  At `q_acc = 10` the simulator improves (mean 78.0% → 79.6%, hard strafe
+  43.8% → 45.4%), but both real videos regress hard: 66.6% → 61.3% (video 3) and
+  65.4% → 58.7% (video 4). At 25 fps the acceleration is not observable from
+  corner positions with ~1 px noise and a biased yaw; the filter amplifies
+  detection noise instead. The code stays behind `ca_model: 0` as a tested
+  option, not as a default.
 
 ### Simulator-in-the-loop tuning (`tools/tune_sim.py`)
 

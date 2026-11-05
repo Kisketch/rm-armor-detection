@@ -34,8 +34,8 @@ const char* toString(TrackState s);
 
 class RobotTracker {
 public:
-    static constexpr int N = 11;
-    enum Idx { XC = 0, VXC, YC, VYC, ZC, VZC, YAW, W, R1, R2, DZ };
+    static constexpr int N = 13;
+    enum Idx { XC = 0, VXC, YC, VYC, ZC, VZC, YAW, W, R1, R2, DZ, AXC, AY };
     using Vec = cv::Vec<double, N>;
     using Mat = cv::Matx<double, N, N>;
 

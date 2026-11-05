@@ -250,4 +250,3 @@ int main(int argc, char** argv) {
     std::printf("wrote %d panel images to %s\n", saved, out_dir.c_str());
     return saved > 0 || (clip_a >= 0) ? 0 : 1;
 }
-

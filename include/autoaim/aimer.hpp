@@ -61,6 +61,7 @@ private:
     int selectArmor(const RobotTracker& t, const RobotTracker::Vec& x, double& facing) const;
     AimerConfig cfg_;
     const Ballistics& ball_;
+    mutable int last_armor_ = -1;  // plate chosen last frame, for switch hysteresis
 };
 
 class PointAimer {

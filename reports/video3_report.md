@@ -4,7 +4,7 @@
 |---|---|---|---|---|---|
 | direct (aim at current plate) | 1943 | 1856 | 658 | 35.5% | 7.4 |
 | point KF (predict plate centre) | 1743 | 1653 | 489 | 29.6% | 5.5 |
-| robot EKF (whole-robot model) | 1358 | 1309 | 872 | 66.6% | 9.9 |
+| robot EKF (whole-robot model) | 1363 | 1313 | 877 | 66.8% | 9.9 |
 | oracle (cheats: aims at the future plate) | 2010 | 1990 | 1977 | 99.3% | 22.4 |
 
 | prediction | horizon | samples | mean px | median px | p90 px |

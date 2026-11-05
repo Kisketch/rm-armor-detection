@@ -79,6 +79,7 @@ ballistic:
 aimer:
    latency: 0.06
    side_angle_deg: 20.        # tuned: higher = fewer but surer shots
+   switch_hysteresis_deg: 3. # stay on the current plate unless the next is 3 deg better
    min_switch_omega: 1.0
    max_fire_facing_deg: 30.   # tuned: 15 -> 69% / 6.3 hits/s, 30 -> 63% / 9.0, 50 -> 58% / 10.7 (video 3)
    center_mode_omega: 12.     # armor mode matched or beat centre mode up to 10 rad/s

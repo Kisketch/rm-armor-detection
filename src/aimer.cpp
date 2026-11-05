@@ -70,11 +70,23 @@ int RobotAimer::selectArmor(const RobotTracker& t, const RobotTracker::Vec& x, d
     if (std::abs(w) > cfg_.min_switch_omega) shift = (w > 0 ? 1 : -1) * cfg_.side_angle_deg * kPi / 180;
     int best = 0;
     double best_cost = 1e9;
-    for (int k = 0; k < t.armorsNum(); ++k) {
-        const double alpha = wrapAngle(t.armorYaw(x, k) - center_dir);
-        const double cost = std::abs(wrapAngle(alpha + shift));
-        if (cost < best_cost) best_cost = cost, best = k, facing = alpha;
+    double cost[8] = {1e9, 1e9, 1e9, 1e9, 1e9, 1e9, 1e9, 1e9};
+    double alpha[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+    const int n = std::min(8, t.armorsNum());
+    for (int k = 0; k < n; ++k) {
+        const double a = wrapAngle(t.armorYaw(x, k) - center_dir);
+        alpha[k] = a;
+        cost[k] = std::abs(wrapAngle(a + shift));
+        if (cost[k] < best_cost) best_cost = cost[k], best = k;
     }
+    // Hysteresis: staying on the current plate avoids dithering at the switch
+    // boundary, which costs gimbal travel and therefore shots.
+    if (cfg_.switch_hysteresis_deg > 0 && last_armor_ >= 0 && last_armor_ < n) {
+        const double margin = cfg_.switch_hysteresis_deg * kPi / 180;
+        if (cost[last_armor_] <= best_cost + margin) best = last_armor_;
+    }
+    last_armor_ = best;
+    facing = alpha[best];
     return best;
 }
 

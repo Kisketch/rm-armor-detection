@@ -26,7 +26,7 @@ verifiable shots; **hits/s** = hits per second of video (the damage output).
 |---|---|---|---|---|
 | direct (aim at the current plate, no prediction) | 35.5% | 7.4 | 56.7%* | 11.8 |
 | point KF (constant-velocity predictor on the plate) | 29.6% | 5.5 | 43.1% | 3.5 |
-| **robot EKF (this system)** | **66.6%** | **9.9** | **65.4%** | **9.2** |
+| **robot EKF (this system)** | **66.8%** | **9.9** | **65.8%** | **9.1** |
 | oracle (cheats: aims at the plate seen at impact time) | 99.3% | 22.4 | 93.8% | 22.0 |
 
 \* At video 4's spin rate (8.3 rad/s) the 0.33 s lead is ≈ 155°, so "aim where a plate
@@ -65,9 +65,9 @@ tracker recovers the same robot from both:
 | spin 4 rad/s, approaching 7 → 3 m | 51.8% | 44.4% | **97.4%** | 13.2 | 3.0 cm | 0.49 |
 | variable spin 0.5–4.5 rad/s at 6 m | 69.9% | 73.2% | **94.4%** | 12.6 | 4.4 cm | 0.53 |
 | swing back and forth ±3 rad/s | 64.4% | 88.7% | **96.2%** | 16.4 | 4.2 cm | 0.55 |
-| spin 3 rad/s + gentle strafe 0.3 m | 74.9% | 67.0% | **78.9%** | 11.1 | 4.4 cm | 0.57 |
-| spin 6 rad/s + hard strafe 0.5 m / 2 s | 53.6% | 14.6% | 43.8% | 5.8 | 3.5 cm | 0.97 |
-| no spin, hard strafe 0.8 m / 2 s | 14.0% | 24.5% | 14.4% | 2.0 | 10.7 cm | 1.68 |
+| spin 3 rad/s + gentle strafe 0.3 m | 74.9% | 67.0% | **79.3%** | 11.3 | 4.4 cm | 0.57 |
+| spin 6 rad/s + hard strafe 0.5 m / 2 s | 53.6% | 14.6% | 43.2% | 5.8 | 3.5 cm | 0.97 |
+| no spin, hard strafe 0.8 m / 2 s | 14.0% | 24.5% | 14.6% | 2.1 | 10.7 cm | 1.68 |
 
 The last two rows are open problems (see "Limitations"): their sideways
 acceleration is 5–8 m/s². Over a 0.33 s lead, a constant-velocity prediction is
@@ -238,6 +238,7 @@ with the median prediction error at 0.32 s in brackets:
 | D + stiff centre + adaptive Q | 56.3% (16.2) | 54.2% (19.3) |
 | E + fire only at plates within 30° (final) | **62.5%** (16.2) | **59.6%** (19.3) |
 | F + Singer velocity damping (τ = 0.3 s) | **66.6%** (14.2) | **65.4%** (16.7) |
+| G + plate-switch hysteresis (3°) | **66.8%** (14.2) | **65.8%** (16.7) |
 
 Step F sweep on both videos (robot-EKF hit rate / median 0.32 s error):
 
@@ -297,6 +298,16 @@ Other findings:
   corner positions with ~1 px noise and a biased yaw; the filter amplifies
   detection noise instead. The code stays behind `ca_model: 0` as a tested
   option, not as a default.
+
+* **Hit rate alone is gameable - the shipped point is chosen on hits/s.** The
+  early-switch angle raises the hit rate monotonically while destroying volume:
+  video 4, `side_angle` 20° → 45° gives 65.4% → 71.9% but 9.2 → 5.3 hits/s.
+  The fire window does the same: `max_fire_facing` 20° → 69.6% / 8.0 hits/s,
+  30° → 66.6% / 9.9. Both are dominated by the shipped setting in damage per
+  second, so the larger angles stay off.
+* **Plate-switch hysteresis** (3°) is the one knob that improved both videos
+  without costing volume: 66.6 → 66.8 and 65.4 → 65.8 at 9.9 / 9.1 hits/s.
+  It stops the selector dithering at the switch boundary.
 
 ### Simulator-in-the-loop tuning (`tools/tune_sim.py`)
 

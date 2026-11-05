@@ -283,6 +283,12 @@ Other findings:
   expected value (≈3), so `clamp(nis/3, 1, max)` stays at 1. Step D's gain
   therefore comes from the stiff-centre change, not from the adaptation. Making
   it useful would need a different trigger (e.g. NIS − 3) — untested.
+* **Gimbal velocity feedforward — a hardware ask, measured in simulation.**
+  The gimbal model is a first-order lag; adding the commanded yaw rate as
+  feedforward (`gimbal_ff`, evaluation-only, default 0) lifts the hard-strafe
+  scenario 43.8% → **51.1%** at ff = 1.0 and the no-spin strafe 14.4% → 18.0%
+  at ff = 0.5 (mean 78.0% → 79.8%). The vision side cannot buy this: it needs
+  the gimbal controller to accept a rate term, which is an electronics change.
 * **Constant-acceleration states (CA) — tested, rejected.** Two extra states
   (`AXC`, `AYC`, `ca_model`, `q_acc`) were appended so no existing index moves.
   At `q_acc = 10` the simulator improves (mean 78.0% → 79.6%, hard strafe

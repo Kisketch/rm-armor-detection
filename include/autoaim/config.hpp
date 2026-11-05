@@ -110,6 +110,9 @@ struct AimerConfig {
     // simulated gimbal
     double gimbal_tau = 0.03;        // s, first-order lag
     double gimbal_max_rate = 12.0;   // rad/s
+    // Velocity feedforward into the simulated gimbal (0 = pure P lag).
+    // Models a real gimbal that also receives the commanded yaw rate.
+    double gimbal_ff = 0.0;
 };
 
 struct EvalConfig {

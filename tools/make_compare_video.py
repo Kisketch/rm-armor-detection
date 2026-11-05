@@ -79,12 +79,21 @@ def concat(parts: list[Path], out: Path) -> None:
 def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
     TMP.mkdir(parents=True, exist_ok=True)
-    jobs = [
-        ("3", ROOT / "../template/template/video/3.avi", ROOT / "runs/cmp3/3_overlay_850_1000.avi",
-         850, "01_3号视频_原画vs自瞄.mp4"),
-        ("4", ROOT / "../template/template/video/4.avi", ROOT / "runs/cmp4/4_overlay_2625_2775.avi",
-         2625, "02_4号视频_原画vs自瞄.mp4"),
-    ]
+    full = "--full" in sys.argv
+    if full:
+        jobs = [
+            ("3", ROOT / "../template/template/video/3.avi", ROOT / "runs/cmp3/3_overlay_0_2208.avi",
+             0, "06_全片_3号_原画vs自瞄.mp4"),
+            ("4", ROOT / "../template/template/video/4.avi", ROOT / "runs/cmp4/4_overlay_0_3415.avi",
+             0, "07_全片_4号_原画vs自瞄.mp4"),
+        ]
+    else:
+        jobs = [
+            ("3", ROOT / "../template/template/video/3.avi", ROOT / "runs/cmp3/3_overlay_850_1000.avi",
+             850, "01_3号视频_原画vs自瞄.mp4"),
+            ("4", ROOT / "../template/template/video/4.avi", ROOT / "runs/cmp4/4_overlay_2625_2775.avi",
+             2625, "02_4号视频_原画vs自瞄.mp4"),
+        ]
     made = []
     for tag, original, overlay, start, name in jobs:
         avi = TMP / f"cmp_{tag}.avi"
@@ -92,11 +101,16 @@ def main() -> int:
         mp4 = OUT / name
         encode(avi, mp4)
         size = mp4.stat().st_size / 1024
-        print(f"{name}: {frames} frames, {size:.0f} KB")
+        print(f"{name}: {frames} frames, {size / 1024:.1f} MB")
         made.append(mp4)
-    combined = OUT / "03_合集_3号+4号_原画vs自瞄.mp4"
-    concat(made, combined)
-    print(f"{combined.name}: {combined.stat().st_size / 1024:.0f} KB")
+    if full:
+        combined = OUT / "08_全片合集_3号+4号_原画vs自瞄.mp4"
+        concat(made, combined)
+        print(f"{combined.name}: {combined.stat().st_size / 1024 / 1024:.1f} MB")
+    else:
+        combined = OUT / "03_合集_3号+4号_原画vs自瞄.mp4"
+        concat(made, combined)
+        print(f"{combined.name}: {combined.stat().st_size / 1024:.0f} KB")
     return 0
 
 

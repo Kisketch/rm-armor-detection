@@ -26,7 +26,7 @@ verifiable shots; **hits/s** = hits per second of video (the damage output).
 |---|---|---|---|---|
 | direct (aim at the current plate, no prediction) | 35.5% | 7.4 | 56.7%* | 11.8 |
 | point KF (constant-velocity predictor on the plate) | 29.6% | 5.5 | 43.1% | 3.5 |
-| **robot EKF (this system)** | **66.8%** | **9.9** | **65.8%** | **9.1** |
+| **robot EKF (this system)** | **67.2%** | **10.2** | **68.1%** | **9.5** |
 | oracle (cheats: aims at the plate seen at impact time) | 99.3% | 22.4 | 93.8% | 22.0 |
 
 \* At video 4's spin rate (8.3 rad/s) the 0.33 s lead is ≈ 155°, so "aim where a plate
@@ -40,11 +40,11 @@ centre; the plate's half-width is about 24 px):
 
 | horizon | no prediction | point KF | robot EKF |
 |---|---|---|---|
-| video 3, 0.12 s | 27.4 | 9.7 | **4.7** |
+| video 3, 0.12 s | 27.4 | 9.7 | **4.9** |
 | video 3, 0.20 s | 44.1 | 29.7 | **8.3** |
 | video 3, 0.32 s | 39.1 | 66.6 | **14.2** |
-| video 4, 0.20 s | 23.1 | 91.0 | **11.7** |
-| video 4, 0.32 s | 44.5 | 84.9 | **16.7** |
+| video 4, 0.20 s | 23.1 | 91.0 | **10.4** |
+| video 4, 0.32 s | 44.5 | 84.9 | **14.8** |
 
 **Recovered robot geometry.** The two videos are independent recordings, and the
 tracker recovers the same robot from both:
@@ -239,6 +239,7 @@ with the median prediction error at 0.32 s in brackets:
 | E + fire only at plates within 30° (final) | **62.5%** (16.2) | **59.6%** (19.3) |
 | F + Singer velocity damping (τ = 0.3 s) | **66.6%** (14.2) | **65.4%** (16.7) |
 | G + plate-switch hysteresis (3°) | **66.8%** (14.2) | **65.8%** (16.7) |
+| H + yaw process noise 30 → 8 | **67.2%** (14.2) | **68.1%** (14.8) |
 
 Step F sweep on both videos (robot-EKF hit rate / median 0.32 s error):
 
@@ -258,6 +259,25 @@ systematically overshoots. In the synthetic simulator the strafing is a smooth
 sinusoid, which CV predicts better than a damped model — the sim mean drops
 from 80.0% to 78.0% while both real videos gain 4–6 pp. Real-video evidence wins:
 the sim's motion model is the less faithful one.
+
+Step H sweep (`q_yaw`, yaw process noise; the plateau is 5–15, so the choice is not
+a single-point fit):
+
+| `q_yaw` | video 3 | video 4 |
+|---|---|---|
+| 5 | 67.1% | 68.0% |
+| 8 | **67.2%** | **68.1%** |
+| 10 | 66.8% | 67.7% |
+| 15 | 67.2% | 67.3% |
+| 20 | 66.9% | 66.3% |
+| 30 (previous) | 66.8% | 65.8% |
+| 40 | 66.2% | 65.0% |
+| 50 | 65.7% | 64.8% |
+
+Why: a per-shot analysis of every miss (`docs/miss_analysis.md`) shows the misses
+are dominated by yaw-rate jitter, not by a systematic bias — aimed-at-plate
+centres are correct (median `off_u` ≈ 0 on hits), the error direction follows the
+spin sign, and 40–49% of the misses miss by less than half a panel width.
 
 Other findings:
 
@@ -341,6 +361,19 @@ detection changes.
 ```bash
 ./build/autoaim_video video/3.avi --out runs/cmp3 --render 850:1000
 python3 tools/make_compare_video.py     # needs ffmpeg on PATH
+```
+
+Full-length versions (every frame, 1920×720, H.264) are built with the same tool:
+
+```bash
+./build/autoaim_video video/3.avi --out runs/cmp3 --render 0:2208
+./build/autoaim_video video/4.avi --out runs/cmp4 --render 0:3415
+python3 tools/make_compare_video.py --full
+```
+
+They are ~47 MB / 75 MB / 123 MB (3, 4, concatenated), too large for the repo, so
+they ship in the local package next to the source videos. Per-shot diagnostics of
+where the misses land: [`docs/miss_analysis.md`](docs/miss_analysis.md).
 ```
 
 ### Simulator-in-the-loop tuning (`tools/tune_sim.py`)

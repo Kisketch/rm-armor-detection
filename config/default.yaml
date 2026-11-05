@@ -53,7 +53,7 @@ tracker:
    tracking_thres: 3
    lost_time_thres: 0.4
    q_xyz: 1.0             # tuned (adaptive, see q_adapt_max)
-   q_yaw: 30.
+   q_yaw: 8.             # tuned: 30 -> 8, sweep in README (video3 66.8->67.2, video4 65.8->68.1)
    q_r: 1.0e-4
    q_dz: 1.0e-4
    pixel_noise: 1.0

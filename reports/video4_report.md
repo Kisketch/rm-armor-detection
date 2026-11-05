@@ -1,4 +1,4 @@
-﻿<!-- 由 autoaim_video / autoaim_sim 生成，请勿手改；环境与复现方式见仓库根目录 BASELINE.md -->
+<!-- 由 autoaim_video / autoaim_sim 生成，请勿手改；环境与复现方式见仓库根目录 BASELINE.md -->
 <!-- generated: 2026-11-04 | commit: edfd512 | OS: Windows 11 10.0.26300 | OpenCV: 4.14.0 | CPU: Intel Core Ultra 9 275HX -->
 # 4
 

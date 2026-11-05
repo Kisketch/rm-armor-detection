@@ -61,3 +61,21 @@ jobs:
             echo "未知 --format 应当报错，但程序成功退出"
             exit 1
           fi
+
+  autoaim:
+    name: Autoaim build and unit tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake libopencv-dev python3-opencv python3-numpy
+
+      - name: Build and test
+        run: |
+          cmake -S autoaim -B autoaim/build -DCMAKE_BUILD_TYPE=Release
+          cmake --build autoaim/build -j"$(nproc)"
+          ctest --test-dir autoaim/build --output-on-failure
+          python3 autoaim/tools/calibrate_camera.py --help > /dev/null

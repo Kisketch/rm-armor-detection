@@ -2,7 +2,7 @@
 """Calibrate the actual RM camera from chessboard images, producing --camera YAML.
 
 Example: python3 tools/calibrate_camera.py 'calibration/*.png' --cols 9 --rows 6
-         --square-mm 25 --out config/my_camera.yml
+         --square-mm <measured_mm> --out config/camera.yml
 """
 
 import argparse

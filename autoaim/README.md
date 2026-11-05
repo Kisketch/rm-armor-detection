@@ -3,7 +3,8 @@
 A complete, self-contained RoboMaster armor auto-aim pipeline in C++17 + OpenCV
 (no ROS, no Eigen). It was built by studying the best-known open-source RM
 vision projects, re-implementing their strongest ideas, and then measuring
-every change on the two recorded videos (`../3.avi`, `../4.avi`) and on a
+every change on the two recorded videos (place them at `../video/3.avi` and
+`../video/4.avi` in this combined repository) and on a
 ground-truth simulator.
 
 ```
@@ -167,8 +168,8 @@ frame; measure the square size. Then run:
 
 ```bash
 python3 tools/calibrate_camera.py 'calibration/*.png' --cols 9 --rows 6 \
-  --square-mm 25 --out config/my_camera.yml
-./build/autoaim_video recording.avi --camera config/my_camera.yml --out out_calibrated
+  --square-mm <measured_mm> --out config/camera.yml
+./build/autoaim_video recording.avi --camera config/camera.yml --out out_calibrated
 ```
 
 The calibration tool requires Python OpenCV and NumPy. It reports per-view
@@ -199,7 +200,7 @@ imgcodecs, videoio, highgui, calib3d, dnn).
 cmake -S . -B build && cmake --build build -j
 ./build/autoaim_tests
 ./build/autoaim_sim
-./build/autoaim_video ../3.avi --out out --render 300:450
+./build/autoaim_video ../video/3.avi --out out --render 300:450
 ```
 
 ```powershell
@@ -208,7 +209,7 @@ $cmake = "C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\Comm
 & $cmake -S . -B build -G "Visual Studio 18 2026" -A x64 -DOpenCV_DIR=C:/opencv/opencv/build
 & $cmake --build build --config Release -j
 $env:Path = "C:\opencv\opencv\build\x64\vc16\bin;" + $env:Path
-.\build\Release\autoaim_video.exe ..\3.avi --out out --render 300:450
+.\build\Release\autoaim_video.exe ..\video\3.avi --out out --render 300:450
 ```
 
 `autoaim_video` options:

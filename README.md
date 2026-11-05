@@ -6,6 +6,19 @@
 
 读取视频，检测敌方装甲板：灯条查找 → 装甲板匹配 → 数字识别，逐帧写入结果文件。
 
+## 赛用自瞄系统
+
+[`autoaim/`](autoaim/README.md) 是独立的赛用研发模块，包含装甲板检测、PnP、整车跟踪、弹道与离线评测。它以完整 Git 历史导入；本目录下的作业源码、`3.txt`、`4.txt` 和报告仍按原来的方式使用。
+
+```bash
+cmake -S autoaim -B autoaim/build -DCMAKE_BUILD_TYPE=Release
+cmake --build autoaim/build -j"$(nproc)"
+ctest --test-dir autoaim/build --output-on-failure
+./autoaim/build/autoaim_video video/3.avi --out autoaim/out
+```
+
+赛用系统目前只有离线与合成数据验证。真实相机的棋盘格标定、外参、延迟和弹速须实测后，才能验证实车链路；见 [`autoaim` 标定说明](autoaim/README.md#camera-calibration-for-a-physical-robot)。仓库按原约定不提交大体积视频，测试视频放在 `video/`。
+
 - 输入：`video/3.avi`（2209 帧）、`video/4.avi`（3416 帧），1440×1080 @25fps
 - 输出：`3.txt`、`4.txt`（每帧一行）
 - 实测性能：Linux 6.8–18 ms/帧（55–148 fps，随宿主 CPU 频率/调度波动，见 `RESULTS.md` §5）、Windows 7.0–7.6 ms/帧（131–143 fps），单线程 CPU，均满足 25 fps 实时要求
@@ -35,6 +48,7 @@ python3 tools/check_result.py 3.txt video/3.avi   # 自检
 | 路径 | 作用 |
 | --- | --- |
 | `start.cpp` | 主流程：读帧 → 检测 → 分类 → 写文件 → 可视化 |
+| `autoaim/` | 独立赛用自瞄模块与标定工具 |
 | `Armor/src/ArmorDetector.cpp` | **本次实现**：`FindLight`、`FindArmor`、`WriteFrameResult` |
 | `Armor/include/ArmorTypes.h` | 灯条 / 装甲板数据结构（未改动） |
 | `io/` | `VideoReader` 封装（未改动） |

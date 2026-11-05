@@ -13,6 +13,7 @@ namespace autoaim {
 
 struct CameraConfig {
     double fx = 2400, fy = 2400, cx = 720, cy = 540;
+    int width = 0, height = 0;  // 0 for legacy configs without a declared image size
     std::vector<double> dist = {0, 0, 0, 0, 0};
     double pitch_deg = 0.0;   // camera tilt, positive = looking down
     cv::Matx33d K() const { return {fx, 0, cx, 0, fy, cy, 0, 0, 1}; }

@@ -158,6 +158,33 @@ because the bundled `model/mlp.onnx` was trained with it.
 
 ## Build & run
 
+### Camera calibration for a physical robot
+
+`config/default.yaml` contains assumed intrinsics for the supplied recordings. To
+use a physical camera, capture at least 12 sharp chessboard images with that same
+camera, lens, focus, zoom, and resolution. Move and tilt the board across the
+frame; measure the square size. Then run:
+
+```bash
+python3 tools/calibrate_camera.py 'calibration/*.png' --cols 9 --rows 6 \
+  --square-mm 25 --out config/my_camera.yml
+./build/autoaim_video recording.avi --camera config/my_camera.yml --out out_calibrated
+```
+
+The calibration tool requires Python OpenCV and NumPy. It reports per-view
+reprojection errors and frame coverage; inspect those results and repeat poor
+views. `--camera` loads the measured intrinsics and distortion without changing
+the detector/tracker configuration, and refuses videos with a different
+resolution. Keep the original `config/default.yaml` and assessment outputs.
+Measure camera-to-gimbal rotation and translation separately before using world
+coordinates or ballistics on a robot. `--pitch-deg` records a measured downward
+camera tilt when available; its default of zero is only a placeholder.
+
+The supplied 3.avi and 4.avi lack a calibration capture. Running the tool on
+images from another camera would not calibrate those recordings.
+
+### Build and evaluation
+
 Requirements: CMake ≥ 3.16, a C++17 compiler, OpenCV 4 (core, imgproc,
 imgcodecs, videoio, highgui, calib3d, dnn).
 

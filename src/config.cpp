@@ -43,6 +43,8 @@ Config Config::load(const std::string& path) {
     get(cam, "fy", c.camera.fy);
     get(cam, "cx", c.camera.cx);
     get(cam, "cy", c.camera.cy);
+    get(cam, "width", c.camera.width);
+    get(cam, "height", c.camera.height);
     getDoubles(cam, "dist", c.camera.dist);
     get(cam, "pitch_deg", c.camera.pitch_deg);
 

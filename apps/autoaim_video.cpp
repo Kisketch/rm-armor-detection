@@ -13,6 +13,7 @@
 #include <opencv2/videoio.hpp>
 
 #include <chrono>
+#include <cmath>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
@@ -74,11 +75,12 @@ void writeCsv(const std::string& path, const EvalResult& r) {
 int main(int argc, char** argv) {
     if (argc < 2) {
         std::cerr << "usage: autoaim_video <video> [--config cfg.yaml] [--out dir] [--redetect] [--render A:B]\n"
-                     "                     [--set key=value]... [--sweep key=v1,v2,...]\n";
+                     "                     [--camera calibrated.yml] [--set key=value]... [--sweep key=v1,v2,...]\n";
         return 1;
     }
     const std::string video = argv[1];
     std::string config_path = std::string(AUTOAIM_ROOT) + "/config/default.yaml";
+    std::string camera_path;
     std::string out_dir = "out";
     bool redetect = false;
     int render_a = -1, render_b = -1;
@@ -88,6 +90,7 @@ int main(int argc, char** argv) {
     for (int i = 2; i < argc; ++i) {
         const std::string a = argv[i];
         if (a == "--config" && i + 1 < argc) config_path = argv[++i];
+        else if (a == "--camera" && i + 1 < argc) camera_path = argv[++i];
         else if (a == "--out" && i + 1 < argc) out_dir = argv[++i];
         else if (a == "--redetect") redetect = true;
         else if (a == "--render" && i + 1 < argc) std::sscanf(argv[++i], "%d:%d", &render_a, &render_b);
@@ -109,6 +112,41 @@ int main(int argc, char** argv) {
     }
 
     Config cfg = Config::load(config_path);
+    if (!camera_path.empty()) {
+        cv::FileStorage camera_file(camera_path, cv::FileStorage::READ);
+        const cv::FileNode camera_node = camera_file["camera"];
+        for (const char* key : {"fx", "fy", "cx", "cy", "dist", "width", "height"}) {
+            if (camera_node.empty() || camera_node[key].empty()) {
+                std::cerr << "camera file missing camera." << key << '\n';
+                return 1;
+            }
+        }
+        cfg.camera = Config::load(camera_path).camera;
+        if (cfg.camera.width <= 0 || cfg.camera.height <= 0 || !std::isfinite(cfg.camera.fx) ||
+            !std::isfinite(cfg.camera.fy) || cfg.camera.fx <= 0 || cfg.camera.fy <= 0 ||
+            !std::isfinite(cfg.camera.cx) || !std::isfinite(cfg.camera.cy) ||
+            cfg.camera.dist.size() < 4) {
+            std::cerr << "camera file contains invalid calibration values\n";
+            return 1;
+        }
+        for (double v : cfg.camera.dist)
+            if (!std::isfinite(v)) {
+                std::cerr << "camera file contains invalid distortion coefficients\n";
+                return 1;
+            }
+        cv::VideoCapture probe(video);
+        if (!probe.isOpened()) {
+            std::cerr << "cannot open video " << video << '\n';
+            return 1;
+        }
+        const int width = static_cast<int>(probe.get(cv::CAP_PROP_FRAME_WIDTH));
+        const int height = static_cast<int>(probe.get(cv::CAP_PROP_FRAME_HEIGHT));
+        if (width != cfg.camera.width || height != cfg.camera.height) {
+            std::cerr << "camera calibration size " << cfg.camera.width << 'x' << cfg.camera.height
+                      << " does not match video " << width << 'x' << height << '\n';
+            return 1;
+        }
+    }
     if (cfg.detector.model_path.empty()) cfg.detector.model_path = std::string(AUTOAIM_ROOT) + "/model/mlp.onnx";
     if (cfg.detector.label_path.empty()) cfg.detector.label_path = std::string(AUTOAIM_ROOT) + "/model/label.txt";
     for (const auto& [k, v] : sets)

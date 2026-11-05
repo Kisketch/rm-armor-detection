@@ -442,3 +442,9 @@ model/            mlp.onnx + label.txt (digit classifier from the team template)
 tools/            tune_sim.py (CEM tuning + real-video guard)
 docs/             figures, detection panels and clips, YOLO plan, backlog
 ```
+
+## License
+
+MIT — see [`LICENSE`](LICENSE). Third-party components keep their own terms:
+`chenjunnn/rm_auto_aim` (MIT) and `CSU-FYT-Vision/FYT2024_vision` (Apache-2.0);
+the exact mapping is in "What was taken from where" above.

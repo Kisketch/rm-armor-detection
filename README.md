@@ -433,6 +433,43 @@ Robustness of the shipped config (8 scenarios × 3 seeds, `singer_tau = 0.3`):
 and the worst scenario stays the hard strafe, i.e. it is a model problem, not a
 noise problem. (`tools/robustness_sweep.json`)
 
+## Regression gate
+
+`python3 tools/regression.py` re-runs both videos (detection cache is reused) and
+the simulator, compares against the frozen numbers in `BASELINE.md` §10 and exits
+non-zero on a regression. CI cannot run it because the videos are not in the
+repository, so it is the manual gate before a merge:
+
+```
+video      metric       reference  measured    delta  verdict
+3.avi      hit               67.6      67.6     +0.0  PASS
+3.avi      pred_032          14.3      14.3     +0.0  PASS
+3.avi      hits_per_s        10.6      10.6     +0.0  PASS
+4.avi      hit               68.6      68.6     +0.0  PASS
+4.avi      pred_032          13.4      13.4     +0.0  PASS
+4.avi      hits_per_s        10.0      10.0     +0.0  PASS
+sim        mean_hit          78.1      78.1     -0.0  PASS
+RESULT: PASS
+```
+
+### The remaining knobs are flat
+
+Five knobs that had never been swept (or not since the last model change) were
+tried after the hysteresis fix. None beats the shipped value on both videos, so
+they stay where they are — this is the evidence that tuning is exhausted rather
+than a claim:
+
+| knob | values tried | video 3 | video 4 | verdict |
+|---|---|---|---|---|
+| `singer_tau` | 0.2 / **0.3** / 0.4 / 0.5 | 67.0 / 67.6 / 67.3 / 66.7 | 69.5 / 68.6 / 67.0 / 66.4 | 0.2 buys 0.9 pp on 4 but loses 0.6 on 3 |
+| `q_dz` | 1e-5 / **1e-4** / 1e-3 / 1e-2 | 67.0 / 67.6 / 67.4 / 67.5 | 68.1 / 68.6 / 68.7 / 68.4 | flat (±0.2) |
+| `pixel_noise` | 0.5 / **1.0** / 2.0 / 4.0 | 65.0 / 67.6 / 67.4 / 66.3 | 66.6 / 68.6 / 68.7 / 67.5 | flat; 0.5 is clearly worse |
+| `r_yaw_head_on` | 0.01 / **0.02** / 0.05 / 0.12 | 67.8 / 67.6 / 66.8 / 65.8 | 67.7 / 68.6 / 68.7 / 69.2 | trades 3 for 4, no net gain |
+| `max_match_distance` | 0.25 / **0.35** / 0.50 | 68.1 / 67.6 / 66.1 | 70.8 / 68.6 / 68.4 | 0.25 raises hit% but costs 1.1–1.2 hits/s → DPS worse |
+
+Only a structural change (higher frame rate, better yaw observation, gimbal
+feed-forward) can move the numbers now; see `docs/BACKLOG.md`.
+
 ## Limitations / next steps
 
 1. **Camera calibration.** Intrinsics are assumed (see above), and the camera is

@@ -1,10 +1,14 @@
 // Minimal self-contained tests (no framework dependency).
 #include <cmath>
 #include <cstdio>
+#include <filesystem>
+#include <fstream>
 #include <random>
 
 #include "autoaim/ballistics.hpp"
+#include "autoaim/aimer.hpp"
 #include "autoaim/config.hpp"
+#include "autoaim/evaluation.hpp"
 #include "autoaim/pose.hpp"
 #include "autoaim/tracker.hpp"
 
@@ -124,10 +128,85 @@ static void testTracker() {
                 x[RobotTracker::R1], x[RobotTracker::R2], r);
 }
 
+static void testDetectionCacheParsing() {
+    const auto path = std::filesystem::temp_directory_path() / "rm_autoaim_test_detections.txt";
+    auto write = [&](const char* data) {
+        std::ofstream file(path);
+        file << data;
+    };
+    std::vector<FrameDetections> frames;
+    write("0 0.000 0\n1 0.040 0\n");
+    CHECK(loadDetections(path.string(), frames) && frames.size() == 2,
+          "valid detection cache should load");
+    FrameDetections precise;
+    ArmorDetection armor;
+    armor.number = "3";
+    armor.confidence = 0.7123456f;
+    armor.left.top = {123.456789f, 234.56789f};
+    armor.left.bottom = {123.654321f, 246.12345f};
+    armor.right.top = {173.456789f, 234.98765f};
+    armor.right.bottom = {173.654321f, 246.54321f};
+    armor.left.width = armor.right.width = 3.1234567f;
+    precise.armors.push_back(armor);
+    CHECK(saveDetections(path.string(), {precise}), "precise detection cache should save");
+    CHECK(loadDetections(path.string(), frames) && frames.size() == 1 &&
+          frames[0].armors.size() == 1 &&
+          frames[0].armors[0].left.top.x == armor.left.top.x &&
+          frames[0].armors[0].right.bottom.y == armor.right.bottom.y,
+          "cache should round-trip light coordinates exactly");
+    write("0 0.000 0\n1 0.040 1\n");
+    CHECK(!loadDetections(path.string(), frames), "truncated armor must invalidate cache");
+    write("0 0.000 0\n2 0.040 0\n");
+    CHECK(!loadDetections(path.string(), frames), "non-sequential frame must invalidate cache");
+    std::filesystem::remove(path);
+}
+
+static void testAimerResetsSelectionAfterLoss() {
+    CameraConfig cc;
+    CameraModel cam(cc);
+    TrackerConfig tc;
+    tc.tracking_thres = 1;
+    RobotTracker tr(tc, cam);
+    AimerConfig ac;
+    ac.side_angle_deg = 0;
+    ac.switch_hysteresis_deg = 180;  // expose stale plate indices after reinitialization
+    Ballistics ball(BallisticConfig{});
+    RobotAimer aimer(ac, ball), fresh(ac, ball);
+    auto feed = [&](int first_frame, double yaw) {
+        for (int i = 0; i < 5; ++i) {
+            FrameObservations frame;
+            frame.frame = first_frame + i;
+            frame.stamp = frame.frame * 0.04;
+            ArmorObservation o;
+            o.yaw = yaw;
+            o.position = {5.0 - 0.25 * std::cos(yaw), -0.25 * std::sin(yaw), 0.0};
+            o.distance = cv::norm(o.position);
+            o.det.number = "3";
+            o.det.left.length = o.det.right.length = 20;
+            frame.armors.push_back(o);
+            tr.update(frame);
+        }
+    };
+    feed(0, 0);
+    const AimCommand before = aimer.aim(tr, tr.stamp());
+    CHECK(before.valid, "first target should produce an aim command");
+    tr.reset();
+    CHECK(!aimer.aim(tr, tr.stamp()).valid, "lost target should not produce an aim command");
+    feed(5, kPi / 2);
+    const AimCommand after = aimer.aim(tr, tr.stamp());
+    const AimCommand expected = fresh.aim(tr, tr.stamp());
+    CHECK(after.valid && expected.valid && after.armor_k == expected.armor_k &&
+          after.armor_k != before.armor_k,
+          "reacquired target must not reuse an old plate index: %d -> %d, fresh %d",
+          before.armor_k, after.armor_k, expected.armor_k);
+}
+
 int main() {
     testBallistics();
     testPose();
     testTracker();
+    testDetectionCacheParsing();
+    testAimerResetsSelectionAfterLoss();
     if (failures == 0) std::printf("ALL TESTS PASSED\n");
     return failures == 0 ? 0 : 1;
 }

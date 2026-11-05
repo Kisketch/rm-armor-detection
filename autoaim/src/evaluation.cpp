@@ -16,7 +16,9 @@ namespace autoaim {
 bool saveDetections(const std::string& path, const std::vector<FrameDetections>& frames) {
     std::ofstream out(path);
     if (!out) return false;
-    out << std::fixed << std::setprecision(3);
+    // Round-trip the float light endpoints. Millipixel rounding in the old
+    // cache changed boundary shots on replay even with the same video/config.
+    out << std::setprecision(17);
     for (const auto& f : frames) {
         out << f.frame << ' ' << f.stamp << ' ' << f.armors.size();
         for (const auto& a : f.armors) {
@@ -52,14 +54,21 @@ bool loadDetections(const std::string& path, std::vector<FrameDetections>& frame
         std::istringstream ss(line);
         FrameDetections f;
         std::size_t n = 0;
-        if (!(ss >> f.frame >> f.stamp >> n)) continue;
+        if (!(ss >> f.frame >> f.stamp >> n) || f.frame != static_cast<int>(frames.size()) ||
+            !std::isfinite(f.stamp) || n > 128) return false;
         for (std::size_t i = 0; i < n; ++i) {
             ArmorDetection a;
             int type = 0;
             cv::Point2f lt, lb, rt, rb;
             float lw, rw;
-            ss >> a.number >> a.confidence >> type >> lt.x >> lt.y >> lb.x >> lb.y >> lw >> rt.x >> rt.y >>
-                rb.x >> rb.y >> rw;
+            if (!(ss >> a.number >> a.confidence >> type >> lt.x >> lt.y >> lb.x >> lb.y >> lw >>
+                  rt.x >> rt.y >> rb.x >> rb.y >> rw) ||
+                (type != 0 && type != 1) || !std::isfinite(a.confidence) ||
+                !std::isfinite(lt.x) || !std::isfinite(lt.y) ||
+                !std::isfinite(lb.x) || !std::isfinite(lb.y) ||
+                !std::isfinite(rt.x) || !std::isfinite(rt.y) ||
+                !std::isfinite(rb.x) || !std::isfinite(rb.y) ||
+                !std::isfinite(lw) || !std::isfinite(rw) || lw <= 0 || rw <= 0) return false;
             a.type = static_cast<ArmorType>(type);
             a.left = lightFrom(lt, lb, lw);
             a.right = lightFrom(rt, rb, rw);
@@ -67,9 +76,11 @@ bool loadDetections(const std::string& path, std::vector<FrameDetections>& frame
             a.center = (lb + lt + rt + rb) * 0.25f;
             f.armors.push_back(a);
         }
+        std::string extra;
+        if (ss >> extra) return false;
         frames.push_back(f);
     }
-    return true;
+    return !in.bad() && !frames.empty();
 }
 
 std::vector<FrameObservations> computeObservations(const std::vector<FrameDetections>& frames,

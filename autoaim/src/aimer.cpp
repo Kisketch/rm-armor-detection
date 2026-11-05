@@ -63,7 +63,8 @@ double flightGuess(const Ballistics& ball, const cv::Vec3d& p) {
 
 // ------------------------------------------------------------------ robot
 
-int RobotAimer::selectArmor(const RobotTracker& t, const RobotTracker::Vec& x, double& facing) const {
+int RobotAimer::selectArmor(const RobotTracker& t, const RobotTracker::Vec& x, int previous,
+                            double& facing) const {
     const double center_dir = std::atan2(x[RobotTracker::YC], x[RobotTracker::XC]);
     const double w = x[RobotTracker::W];
     double shift = 0;
@@ -81,18 +82,28 @@ int RobotAimer::selectArmor(const RobotTracker& t, const RobotTracker::Vec& x, d
     }
     // Hysteresis: staying on the current plate avoids dithering at the switch
     // boundary, which costs gimbal travel and therefore shots.
-    if (cfg_.switch_hysteresis_deg > 0 && last_armor_ >= 0 && last_armor_ < n) {
+    if (cfg_.switch_hysteresis_deg > 0 && previous >= 0 && previous < n) {
         const double margin = cfg_.switch_hysteresis_deg * kPi / 180;
-        if (cost[last_armor_] <= best_cost + margin) best = last_armor_;
+        if (cost[previous] <= best_cost + margin) best = previous;
     }
-    last_armor_ = best;
     facing = alpha[best];
     return best;
 }
 
 AimCommand RobotAimer::aim(const RobotTracker& tracker, double now) const {
     AimCommand cmd;
-    if (!tracker.active()) return cmd;
+    if (!tracker.active()) {
+        last_armor_ = -1;
+        last_id_.clear();
+        return cmd;
+    }
+    if (last_id_ != tracker.id()) {
+        last_armor_ = -1;
+        last_id_ = tracker.id();
+    }
+    // All flight-time iterations compare against the plate committed on the
+    // previous frame. An intermediate iteration is not a new selection.
+    const int previous = last_armor_;
     const double t0 = now + cfg_.latency;
     RobotTracker::Vec x = tracker.predict(t0);
     double t_fly = flightGuess(ball_, {x[RobotTracker::XC], x[RobotTracker::YC], x[RobotTracker::ZC]});
@@ -101,7 +112,7 @@ AimCommand RobotAimer::aim(const RobotTracker& tracker, double now) const {
     double facing = 0;
     for (int it = 0; it < 4; ++it) {
         x = tracker.predict(t0 + t_fly);
-        k = selectArmor(tracker, x, facing);
+        k = selectArmor(tracker, x, previous, facing);
         cv::Vec3d target;
         if (center_mode) {
             // aim along the centre direction at the distance of the front plate
@@ -121,6 +132,7 @@ AimCommand RobotAimer::aim(const RobotTracker& tracker, double now) const {
         t_fly = new_t;
     }
     cmd.valid = true;
+    last_armor_ = k;
     cmd.center_mode = center_mode;
     cmd.armor_k = k;
     cmd.facing_deg = facing * 180 / kPi;

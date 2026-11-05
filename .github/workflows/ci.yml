@@ -79,3 +79,5 @@ jobs:
           cmake --build autoaim/build -j"$(nproc)"
           ctest --test-dir autoaim/build --output-on-failure
           python3 autoaim/tools/calibrate_camera.py --help > /dev/null
+          python3 autoaim/tests/test_cache.py autoaim/build/autoaim_video
+          python3 autoaim/tests/test_compare_video.py

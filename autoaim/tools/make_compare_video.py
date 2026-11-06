@@ -16,6 +16,24 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
 
+
+def default_video_dir() -> Path:
+    """Works in both layouts: autoaim/video and RM/template/template/video."""
+    for candidate in (ROOT.parent / "template" / "template" / "video",
+                      ROOT.parent / "video", ROOT / "video"):
+        if candidate.is_dir():
+            return candidate
+    return ROOT.parent / "video"
+
+
+def default_ffmpeg() -> str | None:
+    found = shutil.which("ffmpeg")
+    if found:
+        return found
+    # Windows: the yt-dlp build ships a usable ffmpeg next to the executable
+    local = Path.home() / "AppData" / "Local" / "Programs" / "yt-dlp" / "ffmpeg.exe"
+    return str(local) if local.is_file() else None
+
 PANEL_W, PANEL_H = 960, 720
 BAR_H = 34
 FONT = cv2.FONT_HERSHEY_SIMPLEX
@@ -88,14 +106,14 @@ def concat(parts: list[Path], out: Path, ffmpeg: str, tmp: Path) -> None:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--full", action="store_true", help="render both full-length comparisons")
-    ap.add_argument("--video-dir", type=Path, default=ROOT.parent / "video",
+    ap.add_argument("--video-dir", type=Path, default=default_video_dir(),
                     help="directory containing original 3.avi and 4.avi")
     ap.add_argument("--overlay-dir", type=Path, default=ROOT / "runs",
                     help="directory containing cmp3/ and cmp4/ overlay outputs")
     ap.add_argument("--out-dir", type=Path, default=ROOT / "out_compare",
                     help="where to write comparison clips")
-    ap.add_argument("--ffmpeg", default=shutil.which("ffmpeg"),
-                    help="ffmpeg executable; defaults to the one on PATH")
+    ap.add_argument("--ffmpeg", default=default_ffmpeg(),
+                    help="ffmpeg executable; defaults to PATH or the yt-dlp build")
     args = ap.parse_args()
     if not args.ffmpeg:
         ap.error("ffmpeg is required; install it or pass --ffmpeg PATH")

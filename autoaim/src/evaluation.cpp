@@ -16,8 +16,9 @@ namespace autoaim {
 bool saveDetections(const std::string& path, const std::vector<FrameDetections>& frames) {
     std::ofstream out(path);
     if (!out) return false;
-    // Round-trip the float light endpoints. Millipixel rounding in the old
-    // cache changed boundary shots on replay even with the same video/config.
+    // Round-trip the float endpoints exactly. The old millipixel rounding
+    // (fixed << setprecision(3)) changed boundary shots on replay even with the
+    // same video and config.
     out << std::setprecision(17);
     for (const auto& f : frames) {
         out << f.frame << ' ' << f.stamp << ' ' << f.armors.size();
@@ -77,7 +78,7 @@ bool loadDetections(const std::string& path, std::vector<FrameDetections>& frame
             f.armors.push_back(a);
         }
         std::string extra;
-        if (ss >> extra) return false;
+        if (ss >> extra) return false;  // trailing garbage: do not trust the line
         frames.push_back(f);
     }
     return !in.bad() && !frames.empty();

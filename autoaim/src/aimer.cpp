@@ -81,7 +81,9 @@ int RobotAimer::selectArmor(const RobotTracker& t, const RobotTracker::Vec& x, i
         if (cost[k] < best_cost) best_cost = cost[k], best = k;
     }
     // Hysteresis: staying on the current plate avoids dithering at the switch
-    // boundary, which costs gimbal travel and therefore shots.
+    // boundary, which costs gimbal travel and therefore shots. `previous` is the
+    // plate committed on the last frame, not the intermediate pick of an earlier
+    // flight-time iteration (those are not new selections).
     if (cfg_.switch_hysteresis_deg > 0 && previous >= 0 && previous < n) {
         const double margin = cfg_.switch_hysteresis_deg * kPi / 180;
         if (cost[previous] <= best_cost + margin) best = previous;
@@ -97,12 +99,10 @@ AimCommand RobotAimer::aim(const RobotTracker& tracker, double now) const {
         last_id_.clear();
         return cmd;
     }
-    if (last_id_ != tracker.id()) {
+    if (last_id_ != tracker.id()) {  // new target: hysteresis state is meaningless
         last_armor_ = -1;
         last_id_ = tracker.id();
     }
-    // All flight-time iterations compare against the plate committed on the
-    // previous frame. An intermediate iteration is not a new selection.
     const int previous = last_armor_;
     const double t0 = now + cfg_.latency;
     RobotTracker::Vec x = tracker.predict(t0);
@@ -132,9 +132,9 @@ AimCommand RobotAimer::aim(const RobotTracker& tracker, double now) const {
         t_fly = new_t;
     }
     cmd.valid = true;
-    last_armor_ = k;
     cmd.center_mode = center_mode;
     cmd.armor_k = k;
+    last_armor_ = k;  // committed choice for the next frame's hysteresis
     cmd.facing_deg = facing * 180 / kPi;
     cmd.t_impact = t0 + cmd.t_fly;
 

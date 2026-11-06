@@ -4,19 +4,19 @@
 |---|---|---|---|---|---|
 | direct (aim at current plate) | 1943 | 1856 | 658 | 35.5% | 7.4 |
 | point KF (predict plate centre) | 1743 | 1653 | 489 | 29.6% | 5.5 |
-| robot EKF (whole-robot model) | 1394 | 1341 | 901 | 67.2% | 10.2 |
+| robot EKF (whole-robot model) | 1440 | 1388 | 938 | 67.6% | 10.6 |
 | oracle (cheats: aims at the future plate) | 2010 | 1990 | 1977 | 99.3% | 22.4 |
 
 | prediction | horizon | samples | mean px | median px | p90 px |
 |---|---|---|---|---|---|
-| no prediction | 0.12 s | 2234 | 36.8 | 27.4 | 88.2 |
-| point KF | 0.12 s | 2234 | 47.4 | 9.7 | 120.9 |
-| robot EKF | 0.12 s | 2234 | 5.9 | 4.9 | 12.4 |
-| no prediction | 0.20 s | 2235 | 43.2 | 44.1 | 77.2 |
-| point KF | 0.20 s | 2235 | 80.0 | 29.7 | 130.5 |
-| robot EKF | 0.20 s | 2235 | 10.9 | 8.3 | 23.3 |
-| no prediction | 0.32 s | 2223 | 41.9 | 39.1 | 79.6 |
-| point KF | 0.32 s | 2223 | 454.3 | 66.6 | 154.1 |
-| robot EKF | 0.32 s | 2223 | 18.2 | 14.2 | 40.6 |
+| no prediction | 0.12 s | 2235 | 36.8 | 27.4 | 88.2 |
+| point KF | 0.12 s | 2235 | 47.5 | 9.7 | 121.0 |
+| robot EKF | 0.12 s | 2235 | 6.3 | 5.0 | 13.5 |
+| no prediction | 0.20 s | 2236 | 43.1 | 44.1 | 77.1 |
+| point KF | 0.20 s | 2236 | 80.3 | 29.7 | 130.5 |
+| robot EKF | 0.20 s | 2236 | 11.5 | 8.6 | 24.4 |
+| no prediction | 0.32 s | 2223 | 41.8 | 39.0 | 79.6 |
+| point KF | 0.32 s | 2223 | 459.7 | 66.4 | 154.1 |
+| robot EKF | 0.32 s | 2223 | 18.5 | 14.3 | 40.8 |
 
-tracking ratio 0.932, frames with armor 0.965, median |w| 2.647 rad/s, r1 0.243 m, r2 0.209 m, dz 0.050 m
+tracking ratio 0.933, frames with armor 0.965, median |w| 2.690 rad/s, r1 0.216 m, r2 0.232 m, dz -0.050 m

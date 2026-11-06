@@ -13,8 +13,6 @@
 
 #include <opencv2/core.hpp>
 
-#include <string>
-
 #include "autoaim/ballistics.hpp"
 #include "autoaim/config.hpp"
 #include "autoaim/tracker.hpp"
@@ -60,11 +58,12 @@ public:
     AimCommand aim(const RobotTracker& tracker, double now) const;
 
 private:
-    int selectArmor(const RobotTracker& t, const RobotTracker::Vec& x, int previous, double& facing) const;
+    int selectArmor(const RobotTracker& t, const RobotTracker::Vec& x, int previous,
+                    double& facing) const;
     AimerConfig cfg_;
     const Ballistics& ball_;
     mutable int last_armor_ = -1;  // plate chosen last frame, for switch hysteresis
-    mutable std::string last_id_;
+    mutable std::string last_id_;  // tracker id the hysteresis state belongs to
 };
 
 class PointAimer {

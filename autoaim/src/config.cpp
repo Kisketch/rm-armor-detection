@@ -135,6 +135,8 @@ bool setParam(Config& c, const std::string& key, double v) {
     else if (key == "bullet_speed") c.ballistic.bullet_speed = v;
     else if (key == "q_xyz") c.tracker.q_xyz = v;
     else if (key == "q_yaw") c.tracker.q_yaw = v;
+    else if (key == "q_r") c.tracker.q_r = v;
+    else if (key == "q_dz") c.tracker.q_dz = v;
     else if (key == "r_yaw") c.tracker.r_yaw = v;
     else if (key == "r_yaw_head_on") c.tracker.r_yaw_head_on = v;
     else if (key == "pixel_noise") c.tracker.pixel_noise = v;

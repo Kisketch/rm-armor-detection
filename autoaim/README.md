@@ -43,6 +43,10 @@ classifies candidate pairs before assigning shared light bars. It fixes a
 reproducible close-panel failure; both original videos retain identical detections.
 The [RMUC 2026 target review](docs/RMUC_2026_TARGET_REVIEW.md) maps official
 armor and damage rules to this pipeline and identifies the remaining test gaps.
+The [open-source foundation review](docs/OPEN_SOURCE_FOUNDATIONS_2026-11-06.md)
+checks current reference repositories and probes a released four-corner model
+on sampled frames from both original recordings; its candidate counts are not
+ground-truth detection accuracy or real-shot hit rate.
 Its guarded single-light EKF update is available for offline comparison with
 `--set partial_lights=1`. It is disabled by default because the current two
 recordings show no gain and one fewer virtual hit on video 4.

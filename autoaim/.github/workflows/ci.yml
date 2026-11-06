@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, feat/** ]
+  pull_request:
+
+jobs:
+  build-and-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libopencv-dev python3-opencv
+
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build -j"$(nproc)"
+
+      - name: Unit tests
+        run: ./build/autoaim_tests
+
+      - name: Simulator smoke test
+        run: ./build/autoaim_sim --seconds 5
+
+      - name: Synthetic video smoke test
+        run: |
+          python3 - <<'PY'
+          import cv2, numpy as np
+          vw = cv2.VideoWriter("smoke.avi", cv2.VideoWriter_fourcc(*"MJPG"), 25, (640, 480))
+          for _ in range(50):
+              vw.write(np.zeros((480, 640, 3), np.uint8))
+          vw.release()
+          PY
+          ./build/autoaim_video smoke.avi --out /tmp/smoke_out
+
+      - name: Result files exist
+        run: test -f /tmp/smoke_out/smoke_report.md && head -20 /tmp/smoke_out/smoke_report.md
+
+      - name: Comparison-video alignment test
+        run: python3 tests/test_compare_video.py
+
+      - name: Detection cache provenance test
+        run: python3 tests/test_cache.py ./build/autoaim_video

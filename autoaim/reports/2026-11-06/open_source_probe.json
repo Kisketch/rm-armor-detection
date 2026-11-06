@@ -1,0 +1,64 @@
+{
+  "model_sha256": "8b735d0e68faf330e351e353be9f792954512cfaf64f054123c466f755a6fe1e",
+  "opencv": "4.10.0",
+  "onnxruntime": "1.31.1",
+  "confidence": 0.5,
+  "nms_iou": 0.2,
+  "videos": [
+    {
+      "video": "/home/lgnatius/RM/3.avi",
+      "frames": 2209,
+      "fps": 25.0,
+      "sample_interval_frames": 50,
+      "sampled_frames": 45,
+      "model_detection_counts": {
+        "0": 1,
+        "1": 25,
+        "2": 19
+      },
+      "model_color_ids": {
+        "1": 63
+      },
+      "model_armor_ids": {
+        "3": 63
+      },
+      "model_no_detection_frames": [
+        950
+      ],
+      "inference_only_median_ms": 11.79,
+      "inference_only_p95_ms": 15.17,
+      "baseline_cache": "/tmp/rm_reference_models/current_3/3_detections.txt",
+      "baseline_detection_counts": {
+        "0": 2,
+        "1": 37,
+        "2": 6
+      }
+    },
+    {
+      "video": "/home/lgnatius/RM/4.avi",
+      "frames": 3416,
+      "fps": 25.0,
+      "sample_interval_frames": 50,
+      "sampled_frames": 69,
+      "model_detection_counts": {
+        "1": 34,
+        "2": 35
+      },
+      "model_color_ids": {
+        "1": 104
+      },
+      "model_armor_ids": {
+        "3": 104
+      },
+      "model_no_detection_frames": [],
+      "inference_only_median_ms": 11.61,
+      "inference_only_p95_ms": 14.07,
+      "baseline_cache": "/tmp/rm_reference_models/current_4/4_detections.txt",
+      "baseline_detection_counts": {
+        "0": 1,
+        "1": 58,
+        "2": 10
+      }
+    }
+  ]
+}

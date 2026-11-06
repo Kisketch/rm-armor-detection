@@ -61,3 +61,14 @@ jobs:
             echo "未知 --format 应当报错，但程序成功退出"
             exit 1
           fi
+
+      # Share the OpenCV installation with the homework checks above. A second
+      # runner downloaded the same 205 MB of packages and could stall in apt.
+      - name: Autoaim build and unit tests
+        run: |
+          cmake -S autoaim -B autoaim/build -DCMAKE_BUILD_TYPE=Release
+          cmake --build autoaim/build -j"$(nproc)"
+          ctest --test-dir autoaim/build --output-on-failure
+          python3 autoaim/tools/calibrate_camera.py --help > /dev/null
+          python3 autoaim/tests/test_cache.py autoaim/build/autoaim_video
+          python3 autoaim/tests/test_compare_video.py

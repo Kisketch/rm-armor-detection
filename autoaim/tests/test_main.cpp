@@ -1,0 +1,354 @@
+// Minimal self-contained tests (no framework dependency).
+#include <cmath>
+#include <cstdio>
+#include <filesystem>
+#include <fstream>
+#include <random>
+#include <utility>
+
+#include <opencv2/imgproc.hpp>
+
+#include "autoaim/ballistics.hpp"
+#include "autoaim/aimer.hpp"
+#include "autoaim/config.hpp"
+#include "autoaim/detector.hpp"
+#include "autoaim/evaluation.hpp"
+#include "autoaim/pose.hpp"
+#include "autoaim/tracker.hpp"
+
+using namespace autoaim;
+
+static int failures = 0;
+#define CHECK(cond, ...)                                  \
+    do {                                                  \
+        if (!(cond)) {                                    \
+            ++failures;                                   \
+            std::printf("FAIL %s:%d  ", __FILE__, __LINE__); \
+            std::printf(__VA_ARGS__);                     \
+            std::printf("\n");                            \
+        }                                                 \
+    } while (0)
+
+static void testBallistics() {
+    BallisticConfig c;
+    c.use_drag = false;
+    Ballistics ideal(c);
+    double h, t;
+    CHECK(ideal.simulate(0.0, 5.0, h, t), "ideal simulate");
+    const double t_exp = 5.0 / c.bullet_speed;
+    CHECK(std::abs(t - t_exp) < 1e-9 && std::abs(h + 0.5 * c.gravity * t_exp * t_exp) < 1e-9,
+          "ideal closed form h=%f t=%f", h, t);
+
+    c.use_drag = true;
+    Ballistics drag(c);
+    double hd, td;
+    CHECK(drag.simulate(0.0, 5.0, hd, td), "drag simulate");
+    CHECK(td > t && hd < h, "drag must slow the bullet: t %f vs %f, h %f vs %f", td, t, hd, h);
+    // RK4 with k = 0 must equal the closed form
+    c.drag_k = 0.0;
+    double h0, t0;
+    Ballistics(c).simulate(0.1, 6.0, h0, t0);
+    BallisticConfig ci = c;
+    ci.use_drag = false;
+    double h1, t1;
+    Ballistics(ci).simulate(0.1, 6.0, h1, t1);
+    CHECK(std::abs(h0 - h1) < 1e-6 && std::abs(t0 - t1) < 1e-6, "rk4 vs closed form %g %g", h0 - h1, t0 - t1);
+
+    for (double s : {2.0, 5.0, 8.0})
+        for (double z : {-0.3, 0.0, 0.4}) {
+            const auto sol = drag.solve(s, z);
+            CHECK(sol.ok, "solve %f %f", s, z);
+            double hh, tt;
+            drag.simulate(sol.pitch, s, hh, tt);
+            CHECK(std::abs(hh - z) < 1e-3, "solve accuracy s=%f z=%f got %f", s, z, hh);
+        }
+}
+
+static void testLightLongAxis() {
+    const cv::RotatedRect vertical({100.f, 100.f}, {6.f, 30.f}, 0.f);
+    const cv::RotatedRect horizontal({100.f, 100.f}, {30.f, 6.f}, 0.f);
+    const Light v = makeLight(vertical, Color::RED);
+    const Light h = makeLight(horizontal, Color::RED);
+    CHECK(std::abs(v.length - 30.f) < 1e-3f && std::abs(v.width - 6.f) < 1e-3f &&
+          v.tilt_deg < 1.f, "vertical long axis should remain vertical");
+    CHECK(std::abs(h.length - 30.f) < 1e-3f && std::abs(h.width - 6.f) < 1e-3f &&
+          h.tilt_deg > 89.f, "horizontal long axis must not masquerade as a vertical light");
+
+    DetectorConfig cfg;
+    Detector detector(cfg);
+    DetectorDebug debug;
+    cv::Mat frame = cv::Mat::zeros(200, 200, CV_8UC3);
+    cv::rectangle(frame, cv::Rect(40, 80, 60, 8), cv::Scalar(0, 0, 255), cv::FILLED);
+    detector.detect(frame, &debug);
+    CHECK(debug.lights.empty(), "horizontal red decoration must be rejected as a light bar");
+    frame.setTo(cv::Scalar(0, 0, 0));
+    cv::rectangle(frame, cv::Rect(80, 40, 8, 60), cv::Scalar(0, 0, 255), cv::FILLED);
+    detector.detect(frame, &debug);
+    CHECK(debug.lights.size() == 1, "vertical red light bar should remain detectable");
+
+    // A bright horizontal mark between two real bars used to be admitted as a
+    // third light, causing containsOtherLight() to discard the whole plate.
+    frame.setTo(cv::Scalar(0, 0, 0));
+    cv::rectangle(frame, cv::Rect(50, 50, 7, 50), cv::Scalar(0, 0, 255), cv::FILLED);
+    cv::rectangle(frame, cv::Rect(100, 50, 7, 50), cv::Scalar(0, 0, 255), cv::FILLED);
+    cv::rectangle(frame, cv::Rect(72, 72, 16, 5), cv::Scalar(0, 0, 255), cv::FILLED);
+    const auto armors = detector.detect(frame, &debug);
+    CHECK(debug.lights.size() == 2 && debug.pairs_before_classify == 1 && armors.size() == 1,
+          "horizontal decoration must not veto a valid two-bar armor (lights=%zu, pairs=%d, armors=%zu)",
+          debug.lights.size(), debug.pairs_before_classify, armors.size());
+}
+
+static void testAdjacentArmorPairing() {
+    // Four bars form two real panels. Their inner bars have identical lengths,
+    // so a geometry-only greedy matcher chooses the false middle pair first.
+    cv::Mat frame = cv::Mat::zeros(130, 230, CV_8UC3);
+    for (const auto& [x, length] : {std::pair{30, 42}, {80, 32}, {115, 32}, {165, 42}})
+        cv::rectangle(frame, cv::Rect(x, 65 - length / 2, 5, length),
+                      cv::Scalar(0, 80, 255), cv::FILLED);
+    DetectorConfig cfg;
+    cfg.refine_corners = false;
+    Detector detector(cfg);  // no model: exercise pair assignment independently
+    DetectorDebug debug;
+    const auto armors = detector.detect(frame, &debug);
+    CHECK(debug.lights.size() == 4 && debug.pairs_before_classify == 3 && armors.size() == 2,
+          "adjacent panels should yield two pairs (lights=%zu, hypotheses=%d, selected=%zu)",
+          debug.lights.size(), debug.pairs_before_classify, armors.size());
+    if (armors.size() == 2) {
+        CHECK((armors[0].left.center.x < 40 && armors[1].left.center.x > 100) ||
+              (armors[1].left.center.x < 40 && armors[0].left.center.x > 100),
+              "inner bars must not be paired across adjacent panels");
+    }
+}
+
+static void testPose() {
+    CameraConfig cc;
+    cc.pitch_deg = 3.0;
+    CameraModel cam(cc);
+    PoseConfig pc;
+    PoseSolver solver(cam, pc);
+    std::mt19937 rng(1);
+    std::normal_distribution<double> n(0, 0.3);
+    double max_pos = 0, max_yaw = 0;
+    for (double dist : {2.0, 4.0, 6.0})
+        for (double yaw_off : {-40.0, -15.0, 10.0, 35.0}) {
+            const cv::Vec3d p(dist, 0.3, -0.15);
+            const double yaw = std::atan2(p[1], p[0]) + yaw_off * kPi / 180;
+            const auto c3 = armorCorners(p, yaw, 15 * kPi / 180, ArmorType::SMALL);
+            ArmorDetection d;
+            d.type = ArmorType::SMALL;
+            for (int i = 0; i < 4; ++i) {
+                const cv::Point2d q = cam.project(c3[i]);
+                d.corners[i] = cv::Point2f(float(q.x + n(rng)), float(q.y + n(rng)));
+            }
+            d.center = (d.corners[0] + d.corners[1] + d.corners[2] + d.corners[3]) * 0.25f;
+            ArmorObservation o;
+            CHECK(solver.solve(d, o), "pose solve");
+            max_pos = std::max(max_pos, cv::norm(o.position - p) / dist);
+            max_yaw = std::max(max_yaw, std::abs(wrapAngle(o.yaw - yaw)) * 180 / kPi);
+        }
+    CHECK(max_pos < 0.03, "relative position error %.3f", max_pos);
+    CHECK(max_yaw < 8.0, "yaw error %.1f deg", max_yaw);
+    std::printf("pose: max rel. position error %.2f%%, max yaw error %.2f deg (0.3 px noise)\n", 100 * max_pos,
+                max_yaw);
+}
+
+static void testTracker() {
+    CameraConfig cc;
+    CameraModel cam(cc);
+    TrackerConfig tc;
+    RobotTracker tr(tc, cam);
+    const double w = 3.0, r = 0.24, fps = 50;
+    const cv::Vec3d c(5, 0.2, -0.1);
+    for (int n = 0; n < 200; ++n) {
+        const double t = n / fps;
+        FrameObservations f;
+        f.frame = n, f.stamp = t;
+        const double los = std::atan2(c[1], c[0]);
+        for (int k = 0; k < 4; ++k) {
+            const double yaw = 0.2 + w * t + kPi / 2 * k;
+            if (std::abs(wrapAngle(yaw - los)) > 1.0) continue;
+            ArmorObservation o;
+            o.position = {c[0] - r * std::cos(yaw), c[1] - r * std::sin(yaw), c[2]};
+            o.distance = cv::norm(o.position);
+            o.yaw = wrapAngle(yaw);
+            o.det.number = "3";
+            o.det.left.length = o.det.right.length = 20;
+            o.image_center_dist = 100;
+            f.armors.push_back(o);
+        }
+        tr.update(f);
+    }
+    const auto& x = tr.x();
+    CHECK(tr.state() == TrackState::TRACKING, "tracking state %s", toString(tr.state()));
+    CHECK(std::abs(x[RobotTracker::W] - w) < 0.2, "omega %f", x[RobotTracker::W]);
+    CHECK(std::hypot(x[RobotTracker::XC] - c[0], x[RobotTracker::YC] - c[1]) < 0.05, "centre %f %f",
+          x[RobotTracker::XC], x[RobotTracker::YC]);
+    CHECK(std::abs(x[RobotTracker::R1] - r) < 0.03, "radius %f", x[RobotTracker::R1]);
+    std::printf("tracker: w %.3f (true %.1f), r1 %.3f r2 %.3f (true %.2f)\n", x[RobotTracker::W], w,
+                x[RobotTracker::R1], x[RobotTracker::R2], r);
+}
+
+static void testDetectionCacheParsing() {
+    const auto path = std::filesystem::temp_directory_path() / "rm_autoaim_test_detections.txt";
+    auto write = [&](const char* data) {
+        std::ofstream file(path);
+        file << data;
+    };
+    std::vector<FrameDetections> frames;
+    write("0 0.000 0\n1 0.040 0\n");
+    CHECK(loadDetections(path.string(), frames) && frames.size() == 2,
+          "valid detection cache should load");
+    FrameDetections precise;
+    ArmorDetection armor;
+    armor.number = "3";
+    armor.confidence = 0.7123456f;
+    armor.left.top = {123.456789f, 234.56789f};
+    armor.left.bottom = {123.654321f, 246.12345f};
+    armor.right.top = {173.456789f, 234.98765f};
+    armor.right.bottom = {173.654321f, 246.54321f};
+    armor.left.width = armor.right.width = 3.1234567f;
+    precise.armors.push_back(armor);
+    CHECK(saveDetections(path.string(), {precise}), "precise detection cache should save");
+    CHECK(loadDetections(path.string(), frames) && frames.size() == 1 &&
+          frames[0].armors.size() == 1 &&
+          frames[0].armors[0].left.top.x == armor.left.top.x &&
+          frames[0].armors[0].right.bottom.y == armor.right.bottom.y,
+          "cache should round-trip light coordinates exactly");
+    write("0 0.000 0\n1 0.040 1\n");
+    CHECK(!loadDetections(path.string(), frames), "truncated armor must invalidate cache");
+    write("0 0.000 0\n2 0.040 0\n");
+    CHECK(!loadDetections(path.string(), frames), "non-sequential frame must invalidate cache");
+    std::filesystem::remove(path);
+}
+
+static void testRateLimitedShots() {
+    StrategyResult source;
+    source.name = "test";
+    source.frames = 25;
+    for (const auto& [frame, result] : {std::pair{0, ShotResult::HIT},
+                                      std::pair{1, ShotResult::MISS},
+                                      std::pair{2, ShotResult::HIT},
+                                      std::pair{3, ShotResult::UNKNOWN},
+                                      std::pair{4, ShotResult::MISS},
+                                      std::pair{6, ShotResult::HIT}}) {
+        ShotRecord shot;
+        shot.frame = frame;
+        shot.result = result;
+        source.shots_log.push_back(shot);
+    }
+    const StrategyResult ten = rateLimitedShots(source, 25, 10);
+    CHECK(ten.shots == 3 && ten.verifiable == 2 && ten.hits == 2 &&
+          ten.shots_log[0].frame == 0 && ten.shots_log[1].frame == 3 &&
+          ten.shots_log[2].frame == 6,
+          "10 Hz cap should accept frames 0, 3, 6 and preserve unknown shots");
+    const StrategyResult five = rateLimitedShots(source, 25, 5);
+    CHECK(five.shots == 2 && five.verifiable == 2 && five.hits == 2,
+          "5 Hz cap should accept frames 0 and 6");
+    CHECK(rateLimitedShots(source, 25, 25).shots == 6,
+          "25 Hz cap should retain every frame's fire decision");
+}
+
+static void testAimerResetsSelectionAfterLoss() {
+    CameraConfig cc;
+    CameraModel cam(cc);
+    TrackerConfig tc;
+    tc.tracking_thres = 1;
+    RobotTracker tr(tc, cam);
+    AimerConfig ac;
+    ac.side_angle_deg = 0;
+    ac.switch_hysteresis_deg = 180;  // expose stale plate indices after reinitialization
+    Ballistics ball(BallisticConfig{});
+    RobotAimer aimer(ac, ball), fresh(ac, ball);
+    auto feed = [&](int first_frame, double yaw) {
+        for (int i = 0; i < 5; ++i) {
+            FrameObservations frame;
+            frame.frame = first_frame + i;
+            frame.stamp = frame.frame * 0.04;
+            ArmorObservation o;
+            o.yaw = yaw;
+            o.position = {5.0 - 0.25 * std::cos(yaw), -0.25 * std::sin(yaw), 0.0};
+            o.distance = cv::norm(o.position);
+            o.det.number = "3";
+            o.det.left.length = o.det.right.length = 20;
+            frame.armors.push_back(o);
+            tr.update(frame);
+        }
+    };
+    feed(0, 0);
+    const AimCommand before = aimer.aim(tr, tr.stamp());
+    CHECK(before.valid, "first target should produce an aim command");
+    tr.reset();
+    CHECK(!aimer.aim(tr, tr.stamp()).valid, "lost target should not produce an aim command");
+    feed(5, kPi / 2);
+    const AimCommand after = aimer.aim(tr, tr.stamp());
+    const AimCommand expected = fresh.aim(tr, tr.stamp());
+    CHECK(after.valid && expected.valid && after.armor_k == expected.armor_k &&
+          after.armor_k != before.armor_k,
+          "reacquired target must not reuse an old plate index: %d -> %d, fresh %d",
+          before.armor_k, after.armor_k, expected.armor_k);
+}
+
+static void testPartialLightGuard() {
+    CameraModel camera(CameraConfig{});
+    TrackerConfig cfg;
+    cfg.tracking_thres = 1;
+    RobotTracker tracker(cfg, camera);
+    ArmorObservation observation;
+    observation.position = {4.75, 0, 0};
+    observation.yaw = 0;
+    observation.distance = 4.75;
+    observation.det.number = "3";
+    observation.det.type = ArmorType::SMALL;
+    observation.det.left.length = observation.det.right.length = 28;
+    FrameObservations frame;
+    frame.armors = {observation};
+    tracker.update(frame);
+    frame.stamp = 0.04;
+    tracker.update(frame);
+    CHECK(tracker.state() == TrackState::TRACKING, "full observations should establish tracking");
+    frame.stamp = 0.08;
+    frame.armors.clear();
+    tracker.update(frame);
+    CHECK(tracker.state() == TrackState::TEMP_LOST, "missing plate should enter temporary loss");
+
+    const auto& x = tracker.x();
+    const auto corners = armorCorners(tracker.armorPosition(x, 0), tracker.armorYaw(x, 0),
+                                      15 * kPi / 180, ArmorType::SMALL);
+    const cv::Point2d top = camera.project(corners[1]);
+    const cv::Point2d bottom = camera.project(corners[0]);
+    Light light;
+    light.center = cv::Point2f(static_cast<float>((top.x + bottom.x) * 0.5 + 4),
+                               static_cast<float>((top.y + bottom.y) * 0.5));
+    light.length = static_cast<float>(cv::norm(top - bottom));
+    light.tilt_deg = static_cast<float>(std::atan2(std::abs(top.x - bottom.x),
+                                                   std::abs(top.y - bottom.y)) * 180 / kPi);
+    Light far = light;
+    far.center.x += 30;
+    CHECK(!tracker.updatePartialLight({far}, 15), "distant bar must not update the track");
+    Light ambiguous = light;
+    ambiguous.center.x += 2;
+    CHECK(!tracker.updatePartialLight({light, ambiguous}, 15),
+          "two equally plausible bars must not update the track");
+    CHECK(tracker.updatePartialLight({light}, 15), "unique nearby bar should update the track");
+    Ballistics ball(BallisticConfig{});
+    RobotAimer aimer(AimerConfig{}, ball);
+    CHECK(tracker.state() == TrackState::TEMP_LOST && tracker.matched_count == 0 &&
+          !aimer.aim(tracker, frame.stamp).fire,
+          "partial observation must not restore full tracking or authorize fire");
+    tracker.reset();
+    CHECK(!tracker.updatePartialLight({light}, 15), "partial bar must not initialize a lost target");
+}
+
+int main() {
+    testBallistics();
+    testLightLongAxis();
+    testAdjacentArmorPairing();
+    testPose();
+    testTracker();
+    testDetectionCacheParsing();
+    testRateLimitedShots();
+    testAimerResetsSelectionAfterLoss();
+    testPartialLightGuard();
+    if (failures == 0) std::printf("ALL TESTS PASSED\n");
+    return failures == 0 ? 0 : 1;
+}

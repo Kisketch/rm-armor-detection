@@ -11,6 +11,23 @@
 - 实测性能：Linux 6.8–18 ms/帧（55–148 fps，随宿主 CPU 频率/调度波动，见 `RESULTS.md` §5）、Windows 7.0–7.6 ms/帧（131–143 fps），单线程 CPU，均满足 25 fps 实时要求
 - 实测平台：Ubuntu 26.04.1 LTS + OpenCV 4.10.0、Windows 11 + OpenCV 4.14.0（结果逐点一致）
 
+## 赛用自瞄系统
+
+[`autoaim/`](autoaim/README.md) 是独立的赛用研发模块，包含装甲板检测、PnP、整车跟踪、弹道与离线评测。它以完整 Git 历史导入；本目录下的作业源码、`3.txt`、`4.txt` 和报告仍按原来的方式使用。
+
+```bash
+cmake -S autoaim -B autoaim/build -DCMAKE_BUILD_TYPE=Release
+cmake --build autoaim/build -j"$(nproc)"
+ctest --test-dir autoaim/build --output-on-failure
+./autoaim/build/autoaim_video video/3.avi --out autoaim/out
+```
+
+赛用系统目前只有离线与合成数据验证。真实相机的棋盘格标定、外参、延迟和弹速须实测后，才能验证实车链路；见 [`autoaim` 标定说明](autoaim/README.md#camera-calibration-for-a-physical-robot)。仓库按原约定不提交大体积视频，测试视频放在 `video/`。
+
+最新视频审查、改进记录与下一步建议见 [2026-11-05 改进日志](autoaim/docs/IMPROVEMENT_LOG_2026-11-05.md)。
+新版参数的完整复跑、射速约束对照和对齐视频见 [2026-11-06 改进日志](autoaim/docs/IMPROVEMENT_LOG_2026-11-06.md)。
+随后完成的灯条长轴修复、困难片段复核与后续算法方向见 [检测专项日志](autoaim/docs/IMPROVEMENT_LOG_2026-11-06_DETECTOR.md)。
+
 ## 快速开始
 
 ```bash
@@ -35,6 +52,7 @@ python3 tools/check_result.py 3.txt video/3.avi   # 自检
 | 路径 | 作用 |
 | --- | --- |
 | `start.cpp` | 主流程：读帧 → 检测 → 分类 → 写文件 → 可视化 |
+| `autoaim/` | 独立赛用自瞄模块与标定工具 |
 | `Armor/src/ArmorDetector.cpp` | **本次实现**：`FindLight`、`FindArmor`、`WriteFrameResult` |
 | `Armor/include/ArmorTypes.h` | 灯条 / 装甲板数据结构（未改动） |
 | `io/` | `VideoReader` 封装（未改动） |

@@ -4,6 +4,7 @@
 #include <filesystem>
 #include <fstream>
 #include <random>
+#include <utility>
 
 #include "autoaim/ballistics.hpp"
 #include "autoaim/aimer.hpp"
@@ -161,6 +162,33 @@ static void testDetectionCacheParsing() {
     std::filesystem::remove(path);
 }
 
+static void testRateLimitedShots() {
+    StrategyResult source;
+    source.name = "test";
+    source.frames = 25;
+    for (const auto& [frame, result] : {std::pair{0, ShotResult::HIT},
+                                      std::pair{1, ShotResult::MISS},
+                                      std::pair{2, ShotResult::HIT},
+                                      std::pair{3, ShotResult::UNKNOWN},
+                                      std::pair{4, ShotResult::MISS},
+                                      std::pair{6, ShotResult::HIT}}) {
+        ShotRecord shot;
+        shot.frame = frame;
+        shot.result = result;
+        source.shots_log.push_back(shot);
+    }
+    const StrategyResult ten = rateLimitedShots(source, 25, 10);
+    CHECK(ten.shots == 3 && ten.verifiable == 2 && ten.hits == 2 &&
+          ten.shots_log[0].frame == 0 && ten.shots_log[1].frame == 3 &&
+          ten.shots_log[2].frame == 6,
+          "10 Hz cap should accept frames 0, 3, 6 and preserve unknown shots");
+    const StrategyResult five = rateLimitedShots(source, 25, 5);
+    CHECK(five.shots == 2 && five.verifiable == 2 && five.hits == 2,
+          "5 Hz cap should accept frames 0 and 6");
+    CHECK(rateLimitedShots(source, 25, 25).shots == 6,
+          "25 Hz cap should retain every frame's fire decision");
+}
+
 static void testAimerResetsSelectionAfterLoss() {
     CameraConfig cc;
     CameraModel cam(cc);
@@ -206,6 +234,7 @@ int main() {
     testPose();
     testTracker();
     testDetectionCacheParsing();
+    testRateLimitedShots();
     testAimerResetsSelectionAfterLoss();
     if (failures == 0) std::printf("ALL TESTS PASSED\n");
     return failures == 0 ? 0 : 1;

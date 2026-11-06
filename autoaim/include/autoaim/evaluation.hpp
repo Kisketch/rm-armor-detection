@@ -79,6 +79,11 @@ struct StrategyResult {
     std::vector<ShotRecord> shots_log;
 };
 
+// Replay an existing strategy's fire decisions with a maximum shot rate.
+// The offline evaluator has no recoil, heat or firing feedback, so dropping
+// shots does not change its subsequent tracking or gimbal path.
+StrategyResult rateLimitedShots(const StrategyResult& source, double fps, double max_hz);
+
 struct PredictionResult {
     std::string name;
     double horizon = 0;

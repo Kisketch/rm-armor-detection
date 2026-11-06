@@ -8,6 +8,7 @@ because the videos are not in the repository.
 
     python3 tools/regression.py                 # uses build/Release on Windows
     python3 tools/regression.py --exe build/autoaim_video
+    python3 tools/regression.py --exe build/autoaim_video --video-dir /path/to/videos
 
 Exit code 0 = no regression, 1 = regression or missing input.
 """
@@ -42,10 +43,13 @@ def default_exe() -> Path:
 
 
 def default_video_dir() -> Path:
-    for p in ("../template/template/video", "../video", "video"):
-        if Path(p).is_dir():
-            return Path(p)
-    return Path("video")
+    project = Path(__file__).resolve().parents[1]
+    for p in (project / "video", project.parent / "video",
+              project.parent.parent / "template" / "template" / "video",
+              project.parent.parent):
+        if (p / "3.avi").is_file() and (p / "4.avi").is_file():
+            return p
+    return project / "video"
 
 
 def parse_report(path: Path) -> dict:
@@ -67,6 +71,8 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="regression gate against BASELINE section 10")
     ap.add_argument("--exe", default=str(default_exe()))
     ap.add_argument("--videos", default="", help="逗号分隔；默认 3.avi,4.avi")
+    ap.add_argument("--video-dir", type=Path, default=default_video_dir(),
+                    help="包含 3.avi 和 4.avi 的目录")
     ap.add_argument("--out", default="runs/regress")
     ap.add_argument("--sim-exe", default="", help="默认取 video exe 同目录的 autoaim_sim")
     args = ap.parse_args()
@@ -76,7 +82,7 @@ def main() -> int:
         print(f"找不到 autoaim_video: {exe}", file=sys.stderr)
         return 1
 
-    vdir = default_video_dir()
+    vdir = args.video_dir
     stems = [s.strip() for s in args.videos.split(",") if s.strip()] or ["3", "4"]
     videos = []
     for stem in stems:

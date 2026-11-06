@@ -34,6 +34,13 @@ verifiable shots; **hits/s** = hits per second of video (the damage output).
 | **robot EKF (this system)** | **67.6%** | **10.6** | **68.6%** | **10.0** |
 | oracle (cheats: aims at the plate seen at impact time) | 99.3% | 22.4 | 93.8% | 22.0 |
 
+The [2026-11-06 rerun](docs/IMPROVEMENT_LOG_2026-11-06.md) reproduces these
+numbers from fresh detections and adds a 5/10/15 shots/s rate-cap replay.
+The older full comparison video uses `q_yaw=8`; the
+[new aligned 12-second comparison](docs/detections/compare_q3_2026-11-06.mp4)
+uses the current `q_yaw=3, q_r=3e-3` configuration. Rate-cap results are
+offline virtual shots and do not model real weapon heat or recoil.
+
 \* At video 4's spin rate (8.3 rad/s) the 0.33 s lead is ≈ 155°, so "aim where a plate
 is now" often meets the *next* plate. That's aliasing luck at one speed: in the
 simulator at 10 rad/s, direct scores 43% and the robot EKF 99.6%.

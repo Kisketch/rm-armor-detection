@@ -25,6 +25,7 @@ ctest --test-dir autoaim/build --output-on-failure
 赛用系统目前只有离线与合成数据验证。真实相机的棋盘格标定、外参、延迟和弹速须实测后，才能验证实车链路；见 [`autoaim` 标定说明](autoaim/README.md#camera-calibration-for-a-physical-robot)。仓库按原约定不提交大体积视频，测试视频放在 `video/`。
 
 最新视频审查、改进记录与下一步建议见 [2026-11-05 改进日志](autoaim/docs/IMPROVEMENT_LOG_2026-11-05.md)。
+新版参数的完整复跑、射速约束对照和对齐视频见 [2026-11-06 改进日志](autoaim/docs/IMPROVEMENT_LOG_2026-11-06.md)。
 
 ## 快速开始
 

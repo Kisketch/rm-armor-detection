@@ -8,6 +8,7 @@
 #include <iomanip>
 #include <map>
 #include <sstream>
+#include <stdexcept>
 
 namespace autoaim {
 
@@ -426,6 +427,25 @@ EvalResult evaluate(const Config& cfg, const std::vector<FrameObservations>& obs
     return res;
 }
 
+StrategyResult rateLimitedShots(const StrategyResult& source, double fps, double max_hz) {
+    if (!std::isfinite(fps) || fps <= 0 || !std::isfinite(max_hz) || max_hz <= 0)
+        throw std::invalid_argument("fps and maximum shot rate must be positive and finite");
+    StrategyResult limited;
+    limited.name = source.name;
+    limited.frames = source.frames;
+    double last_time = -1e100;
+    for (const ShotRecord& shot : source.shots_log) {
+        const double time = shot.frame / fps;
+        if (time + 1e-9 < last_time + 1.0 / max_hz) continue;
+        last_time = time;
+        limited.shots_log.push_back(shot);
+        ++limited.shots;
+        if (shot.result != ShotResult::UNKNOWN) ++limited.verifiable;
+        if (shot.result == ShotResult::HIT) ++limited.hits;
+    }
+    return limited;
+}
+
 std::string formatReport(const EvalResult& r, double fps) {
     std::ostringstream o;
     o << std::fixed << std::setprecision(1);
@@ -433,6 +453,19 @@ std::string formatReport(const EvalResult& r, double fps) {
     for (const auto& s : r.strategies)
         o << "| " << s.name << " | " << s.shots << " | " << s.verifiable << " | " << s.hits << " | "
           << 100.0 * s.hit_rate() << "% | " << s.hits_per_second(fps) << " |\n";
+    o << "\nRate-cap replay (first eligible fire decision; no heat/recoil feedback; virtual hits):\n\n";
+    o << "| max shots/s | strategy | shots | hits | unknown | hits/s | hits/all shots |\n"
+         "|---:|---|---:|---:|---:|---:|---:|\n";
+    for (double cap : {5.0, 10.0, 15.0})
+        for (const auto& s : r.strategies) {
+            if (s.name != "direct (aim at current plate)" &&
+                s.name != "robot EKF (whole-robot model)") continue;
+            const StrategyResult limited = rateLimitedShots(s, fps, cap);
+            o << "| " << cap << " | " << limited.name << " | " << limited.shots << " | "
+              << limited.hits << " | " << limited.shots - limited.verifiable << " | "
+              << limited.hits_per_second(fps) << " | "
+              << (limited.shots ? 100.0 * limited.hits / limited.shots : 0.0) << "% |\n";
+        }
     o << "\n| prediction | horizon | samples | mean px | median px | p90 px |\n|---|---|---|---|---|---|\n";
     for (const auto& p : r.predictions)
         o << "| " << p.name << " | " << std::setprecision(2) << p.horizon << " s | " << p.samples << " | "

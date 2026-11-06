@@ -39,7 +39,7 @@ private:
 struct DetectorDebug {
     cv::Mat mask;
     std::vector<Light> lights;
-    int pairs_before_classify = 0;
+    int pairs_before_classify = 0;  // all geometric hypotheses, before digit and conflict filtering
 };
 
 class Detector {

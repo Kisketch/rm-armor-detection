@@ -98,6 +98,28 @@ static void testLightLongAxis() {
           debug.lights.size(), debug.pairs_before_classify, armors.size());
 }
 
+static void testAdjacentArmorPairing() {
+    // Four bars form two real panels. Their inner bars have identical lengths,
+    // so a geometry-only greedy matcher chooses the false middle pair first.
+    cv::Mat frame = cv::Mat::zeros(130, 230, CV_8UC3);
+    for (const auto& [x, length] : {std::pair{30, 42}, {80, 32}, {115, 32}, {165, 42}})
+        cv::rectangle(frame, cv::Rect(x, 65 - length / 2, 5, length),
+                      cv::Scalar(0, 80, 255), cv::FILLED);
+    DetectorConfig cfg;
+    cfg.refine_corners = false;
+    Detector detector(cfg);  // no model: exercise pair assignment independently
+    DetectorDebug debug;
+    const auto armors = detector.detect(frame, &debug);
+    CHECK(debug.lights.size() == 4 && debug.pairs_before_classify == 3 && armors.size() == 2,
+          "adjacent panels should yield two pairs (lights=%zu, hypotheses=%d, selected=%zu)",
+          debug.lights.size(), debug.pairs_before_classify, armors.size());
+    if (armors.size() == 2) {
+        CHECK((armors[0].left.center.x < 40 && armors[1].left.center.x > 100) ||
+              (armors[1].left.center.x < 40 && armors[0].left.center.x > 100),
+              "inner bars must not be paired across adjacent panels");
+    }
+}
+
 static void testPose() {
     CameraConfig cc;
     cc.pitch_deg = 3.0;
@@ -320,6 +342,7 @@ static void testPartialLightGuard() {
 int main() {
     testBallistics();
     testLightLongAxis();
+    testAdjacentArmorPairing();
     testPose();
     testTracker();
     testDetectionCacheParsing();

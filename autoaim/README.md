@@ -38,6 +38,9 @@ The [2026-11-06 rerun](docs/IMPROVEMENT_LOG_2026-11-06.md) reproduces these
 numbers from fresh detections and adds a 5/10/15 shots/s rate-cap replay.
 The [detector follow-up](docs/IMPROVEMENT_LOG_2026-11-06_DETECTOR.md) fixes the
 light-bar long-axis geometry; full-video virtual-shot metrics remain unchanged.
+The [adjacent-plate pairing fix](docs/IMPROVEMENT_LOG_2026-11-06_PAIRING.md)
+classifies candidate pairs before assigning shared light bars. It fixes a
+reproducible close-panel failure; both original videos retain identical detections.
 Its guarded single-light EKF update is available for offline comparison with
 `--set partial_lights=1`. It is disabled by default because the current two
 recordings show no gain and one fewer virtual hit on video 4.

@@ -3,8 +3,10 @@
 #include <opencv2/imgproc.hpp>
 
 #include <algorithm>
+#include <cstdint>
 #include <cmath>
 #include <fstream>
+#include <functional>
 
 namespace autoaim {
 namespace {
@@ -183,7 +185,7 @@ bool Detector::containsOtherLight(const Light& a, const Light& b,
 std::vector<ArmorDetection> Detector::matchLights(const std::vector<Light>& lights) const {
     struct Cand {
         ArmorDetection det;
-        float score, width;
+        float score;
     };
     std::vector<Cand> cands;
     for (std::size_t i = 0; i < lights.size(); ++i) {
@@ -216,28 +218,135 @@ std::vector<ArmorDetection> Detector::matchLights(const std::vector<Light>& ligh
             const float score = angle_diff / cfg_.max_pair_angle_diff_deg +
                                 (lmax / lmin - 1.f) / (cfg_.max_length_ratio - 1.f) +
                                 dy / (cfg_.max_center_y_diff * avg);
-            cands.push_back({d, score, dx + thick});
+            cands.push_back({d, score});
         }
     }
     std::sort(cands.begin(), cands.end(), [](const Cand& a, const Cand& b) { return a.score < b.score; });
     std::vector<ArmorDetection> out;
     for (const auto& c : cands) {
-        const cv::Point2f center = (c.det.left.center + c.det.right.center) * 0.5f;
-        bool dup = false;
-        for (const auto& k : out)
-            if (cv::norm(k.center - center) < 0.5f * c.width) dup = true;
-        // a light may belong to one armor only
-        for (const auto& k : out)
-            if (k.left.center == c.det.left.center || k.right.center == c.det.right.center ||
-                k.left.center == c.det.right.center || k.right.center == c.det.left.center)
-                dup = true;
-        if (dup) continue;
         ArmorDetection d = c.det;
-        d.center = center;
+        d.center = (d.left.center + d.right.center) * 0.5f;
         out.push_back(d);
     }
     return out;
 }
+
+namespace {
+
+float pairGeometryCost(const ArmorDetection& a, const DetectorConfig& cfg) {
+    const auto& l = a.left;
+    const auto& r = a.right;
+    const float signed_l = l.tilt_deg * (l.top.x < l.bottom.x ? 1.f : -1.f);
+    const float signed_r = r.tilt_deg * (r.top.x < r.bottom.x ? 1.f : -1.f);
+    const float avg = 0.5f * (l.length + r.length);
+    return std::abs(signed_l - signed_r) / cfg.max_pair_angle_diff_deg +
+           (std::max(l.length, r.length) / std::min(l.length, r.length) - 1.f) /
+               (cfg.max_length_ratio - 1.f) +
+           std::abs(l.center.y - r.center.y) / (cfg.max_center_y_diff * avg);
+}
+
+bool pairsConflict(const ArmorDetection& a, const ArmorDetection& b) {
+    if (a.left.center == b.left.center || a.left.center == b.right.center ||
+        a.right.center == b.left.center || a.right.center == b.right.center)
+        return true;
+    const float aw = cv::norm(a.left.center - a.right.center) +
+                     0.5f * (a.left.width + a.right.width);
+    const float bw = cv::norm(b.left.center - b.right.center) +
+                     0.5f * (b.left.width + b.right.width);
+    return cv::norm(a.center - b.center) < 0.25f * (aw + bw);
+}
+
+int countBits(std::uint64_t bits) {
+    int count = 0;
+    while (bits) {
+        bits &= bits - 1;
+        ++count;
+    }
+    return count;
+}
+
+int firstBit(std::uint64_t bits) {
+    int index = 0;
+    while ((bits & 1) == 0) {
+        bits >>= 1;
+        ++index;
+    }
+    return index;
+}
+
+// A geometrically attractive inner pair must not consume the two middle bars
+// before the digit classifier has seen the two actual panels. In an ambiguous
+// group, prefer two accepted, non-overlapping panels over one accepted cross-pair.
+std::vector<ArmorDetection> selectPairs(std::vector<ArmorDetection> armors,
+                                       const DetectorConfig& cfg) {
+    const int n = static_cast<int>(armors.size());
+    if (n < 2) return armors;
+    std::vector<float> costs(n);
+    for (int i = 0; i < n; ++i) costs[i] = pairGeometryCost(armors[i], cfg);
+    std::vector<std::uint64_t> conflicts(n, 0);
+    bool any_conflict = false;
+    for (int i = 0; i < n; ++i)
+        for (int j = i + 1; j < n; ++j)
+            if (pairsConflict(armors[i], armors[j])) {
+                any_conflict = true;
+                if (n <= 20) {
+                    conflicts[i] |= std::uint64_t{1} << j;
+                    conflicts[j] |= std::uint64_t{1} << i;
+                }
+            }
+    if (!any_conflict) return armors;
+
+    if (n > 20) {
+        // Crowded or noisy frames: keep computation bounded. The classifier has
+        // already discarded rejected digits; this is only a fallback.
+        std::vector<int> order(n);
+        for (int i = 0; i < n; ++i) order[i] = i;
+        std::sort(order.begin(), order.end(), [&](int i, int j) {
+            if (armors[i].confidence != armors[j].confidence)
+                return armors[i].confidence > armors[j].confidence;
+            return costs[i] < costs[j];
+        });
+        std::vector<ArmorDetection> selected;
+        for (int i : order) {
+            bool conflict = false;
+            for (const auto& a : selected) conflict |= pairsConflict(armors[i], a);
+            if (!conflict) selected.push_back(std::move(armors[i]));
+        }
+        return selected;
+    }
+
+    std::uint64_t best_mask = 0;
+    int best_count = -1;
+    double best_conf = -1, best_cost = 1e30;
+    std::function<void(std::uint64_t, std::uint64_t, int, double, double)> search;
+    search = [&](std::uint64_t remaining, std::uint64_t chosen, int count,
+                 double conf, double cost) {
+        if (count + countBits(remaining) < best_count) return;
+        if (!remaining) {
+            if (count > best_count ||
+                (count == best_count && (conf > best_conf + 1e-6 ||
+                 (std::abs(conf - best_conf) <= 1e-6 && cost < best_cost)))) {
+                best_count = count;
+                best_conf = conf;
+                best_cost = cost;
+                best_mask = chosen;
+            }
+            return;
+        }
+        const int i = firstBit(remaining);
+        const std::uint64_t bit = std::uint64_t{1} << i;
+        search((remaining & ~bit) & ~conflicts[i], chosen | bit, count + 1,
+               conf + armors[i].confidence, cost + costs[i]);
+        search(remaining & ~bit, chosen, count, conf, cost);
+    };
+    search((std::uint64_t{1} << n) - 1, 0, 0, 0, 0);
+    std::vector<ArmorDetection> selected;
+    for (int i = 0; i < n; ++i)
+        if (best_mask & (std::uint64_t{1} << i)) selected.push_back(std::move(armors[i]));
+    return selected;
+}
+
+}  // namespace
 
 // PCA symmetry axis + brightness-edge search along it (idea from FYT2024).
 void Detector::refineCorners(const cv::Mat& gray, Light& light) const {
@@ -340,7 +449,7 @@ std::vector<ArmorDetection> Detector::detect(const cv::Mat& bgr, DetectorDebug* 
         debug->pairs_before_classify = static_cast<int>(armors.size());
     }
     classifier_.classify(bgr, armors);
-    return armors;
+    return selectPairs(std::move(armors), cfg_);
 }
 
 }  // namespace autoaim

@@ -46,6 +46,7 @@ class Detector {
 public:
     explicit Detector(const DetectorConfig& cfg);
     std::vector<ArmorDetection> detect(const cv::Mat& bgr, DetectorDebug* debug = nullptr);
+    std::vector<Light> detectLights(const cv::Mat& bgr) const;
 
     const DetectorConfig& config() const { return cfg_; }
 

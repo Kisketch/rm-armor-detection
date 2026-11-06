@@ -117,10 +117,25 @@ std::vector<FrameDetections> runDetector(const std::string& video, const Config&
     return out;
 }
 
+void attachPartialLights(const std::string& video, const Config& cfg,
+                         std::vector<FrameObservations>& obs) {
+    DetectorConfig detector_cfg = cfg.detector;
+    detector_cfg.model_path.clear();
+    detector_cfg.label_path.clear();
+    Detector detector(detector_cfg);
+    cv::VideoCapture cap(video);
+    if (!cap.isOpened()) throw std::runtime_error("cannot open video " + video);
+    cv::Mat frame;
+    for (std::size_t n = 0; n < obs.size(); ++n) {
+        if (!cap.read(frame)) throw std::runtime_error("video ended before partial-light replay");
+        if (obs[n].armors.empty()) obs[n].lights = detector.detectLights(frame);
+    }
+}
+
 void writeCsv(const std::string& path, const EvalResult& r) {
     std::ofstream o(path);
     o << "frame,state,xc,yc,zc,vxc,vyc,yaw,w,r1,r2,dz,matched,cmd_valid,center_mode,armor_k,facing_deg,"
-         "cmd_yaw_deg,cmd_pitch_deg,t_fly,gimbal_yaw_deg,gimbal_pitch_deg,shot,shot_result,miss_px,off_u,off_v\n";
+         "cmd_yaw_deg,cmd_pitch_deg,t_fly,gimbal_yaw_deg,gimbal_pitch_deg,shot,shot_result,miss_px,off_u,off_v,partial_match\n";
     for (const auto& l : r.log) {
         const auto& x = l.x;
         o << l.frame << ',' << toString(l.state) << ',' << x[0] << ',' << x[2] << ',' << x[4] << ',' << x[1] << ','
@@ -129,7 +144,7 @@ void writeCsv(const std::string& path, const EvalResult& r) {
           << ',' << l.cmd.yaw * 180 / kPi << ',' << l.cmd.pitch * 180 / kPi << ',' << l.cmd.t_fly << ','
           << l.gimbal_yaw * 180 / kPi << ',' << l.gimbal_pitch * 180 / kPi << ',' << l.shot << ','
           << static_cast<int>(l.shot_rec.result) << ',' << l.shot_rec.miss_px << ',' << l.shot_rec.off_u << ','
-          << l.shot_rec.off_v << '\n';
+          << l.shot_rec.off_v << ',' << l.partial_match << '\n';
     }
 }
 
@@ -225,6 +240,14 @@ int main(int argc, char** argv) {
         std::cerr << "refine_corners changes detections; use separate --set runs instead of --sweep\n";
         return 1;
     }
+    if (sweep_key == "partial_lights") {
+        std::cerr << "partial_lights requires separate --set runs instead of --sweep\n";
+        return 1;
+    }
+    if (!sweep_key.empty() && cfg.tracker.partial_lights) {
+        std::cerr << "partial_lights requires a separate --set run instead of --sweep\n";
+        return 1;
+    }
 
     fs::create_directories(out_dir);
     const std::string stem = fs::path(video).stem().string();
@@ -281,16 +304,19 @@ int main(int argc, char** argv) {
     CameraModel camera(cfg.camera);
     PoseSolver solver(camera, cfg.pose);
     const auto t0 = std::chrono::steady_clock::now();
-    const auto obs = computeObservations(dets, solver);
+    auto obs = computeObservations(dets, solver);
     const auto t1 = std::chrono::steady_clock::now();
+    if (cfg.tracker.partial_lights) attachPartialLights(video, cfg, obs);
+    const auto t_partial = std::chrono::steady_clock::now();
     const EvalResult res = evaluate(cfg, obs, camera, true);
     const auto t2 = std::chrono::steady_clock::now();
     const double pose_ms = std::chrono::duration<double, std::milli>(t1 - t0).count() / std::max<size_t>(1, obs.size());
-    const double eval_ms = std::chrono::duration<double, std::milli>(t2 - t1).count() / std::max<size_t>(1, obs.size());
+    const double partial_ms = std::chrono::duration<double, std::milli>(t_partial - t1).count() / std::max<size_t>(1, obs.size());
+    const double eval_ms = std::chrono::duration<double, std::milli>(t2 - t_partial).count() / std::max<size_t>(1, obs.size());
 
     const std::string report = formatReport(res, cfg.eval.fps);
     std::cout << "\n" << report;
-    std::printf("timing: pose %.3f ms/frame, trackers+aimers+judge %.3f ms/frame%s\n", pose_ms, eval_ms,
+    std::printf("timing: pose %.3f ms/frame, partial-light pass %.3f ms/frame, trackers+aimers+judge %.3f ms/frame%s\n", pose_ms, partial_ms, eval_ms,
                 det_ms > 0 ? (", detector " + std::to_string(det_ms) + " ms/frame").c_str() : "");
     {
         std::ofstream o(out_dir + "/" + stem + "_report.md");

@@ -340,6 +340,80 @@ void RobotTracker::update(const FrameObservations& frame) {
     }
 }
 
+bool RobotTracker::updatePartialLight(const std::vector<Light>& lights, double armor_pitch_deg) {
+    if (state_ != TrackState::TEMP_LOST || lights.empty() ||
+        !std::isfinite(armor_pitch_deg)) return false;
+
+    const double pitch = armor_pitch_deg * kPi / 180.0;
+    auto bar = [&](const Vec& x, int k, int side, cv::Point2d& center,
+                   double& length, double& tilt) {
+        const cv::Vec3d position = armorPosition(x, k);
+        if (!camera_.inFront(position)) return false;
+        const auto corners = armorCorners(position, armorYaw(x, k), pitch, armor_type);
+        const cv::Point2d top = camera_.project(corners[side == 0 ? 1 : 2]);
+        const cv::Point2d bottom = camera_.project(corners[side == 0 ? 0 : 3]);
+        center = (top + bottom) * 0.5;
+        length = cv::norm(top - bottom);
+        tilt = std::atan2(std::abs(top.x - bottom.x), std::abs(top.y - bottom.y)) * 180.0 / kPi;
+        return std::isfinite(center.x) && std::isfinite(center.y) && length > 1.0;
+    };
+
+    struct Candidate {
+        int light, k, side;
+        double distance;
+        cv::Point2d prediction;
+    };
+    std::vector<Candidate> candidates;
+    const double los = std::atan2(x_[YC], x_[XC]);
+    for (int k = 0; k < cfg_.armors_num; ++k) {
+        if (std::abs(wrapAngle(armorYaw(x_, k) - los)) > 1.35) continue;
+        for (int side = 0; side < 2; ++side) {
+            cv::Point2d center;
+            double length, tilt;
+            if (!bar(x_, k, side, center, length, tilt)) continue;
+            for (int i = 0; i < static_cast<int>(lights.size()); ++i) {
+                const Light& light = lights[i];
+                const double ratio = light.length / length;
+                if (ratio < 0.7 || ratio > 1.35 ||
+                    std::abs(light.tilt_deg - tilt) > 20.0) continue;
+                const double distance = cv::norm(cv::Point2d(light.center) - center);
+                if (distance <= 10.0) candidates.push_back({i, k, side, distance, center});
+            }
+        }
+    }
+    std::sort(candidates.begin(), candidates.end(),
+              [](const Candidate& a, const Candidate& b) { return a.distance < b.distance; });
+    if (candidates.empty() ||
+        (candidates.size() > 1 && candidates[1].distance - candidates[0].distance < 5.0))
+        return false;
+
+    const Candidate& best = candidates[0];
+    cv::Matx<double, 2, N> H = cv::Matx<double, 2, N>::zeros();
+    for (int j = 0; j < N; ++j) {
+        Vec perturbed = x_;
+        perturbed[j] += 1e-4;
+        cv::Point2d p;
+        double length, tilt;
+        if (!bar(perturbed, best.k, best.side, p, length, tilt)) return false;
+        H(0, j) = (p.x - best.prediction.x) / 1e-4;
+        H(1, j) = (p.y - best.prediction.y) / 1e-4;
+    }
+    const cv::Vec2d residual = cv::Point2d(lights[best.light].center) - best.prediction;
+    const cv::Matx22d R = cv::Matx22d::eye() * 100.0;  // uncertain uncalibrated bar centre (10 px)
+    const cv::Matx22d S = H * P_ * H.t() + R;
+    if (!std::isfinite(cv::determinant(S)) || cv::determinant(S) <= 0) return false;
+    const cv::Matx22d Si = S.inv(cv::DECOMP_CHOLESKY);
+    const double nis = (residual.t() * Si * residual)(0);
+    if (!std::isfinite(nis) || nis > 9.0) return false;
+
+    const cv::Matx<double, N, 2> K = P_ * H.t() * Si;
+    x_ += K * residual;
+    const Mat IKH = Mat::eye() - K * H;
+    P_ = IKH * P_ * IKH.t() + K * R * K.t();
+    clampState();
+    return true;
+}
+
 // ============================================================ PointTracker
 
 PointTracker::PointTracker(const TrackerConfig& cfg, const CameraModel& camera)

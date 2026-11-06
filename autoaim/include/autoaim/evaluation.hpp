@@ -102,6 +102,7 @@ struct FrameLog {
     bool shot = false;
     ShotRecord shot_rec;
     int matched = 0;
+    bool partial_match = false;
 };
 
 struct EvalResult {

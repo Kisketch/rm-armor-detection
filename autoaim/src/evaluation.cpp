@@ -294,6 +294,8 @@ EvalResult evaluate(const Config& cfg, const std::vector<FrameObservations>& obs
         const auto& f = obs[n];
         if (!f.armors.empty()) ++frames_with_armor;
         robot.update(f);
+        const bool partial_match = cfg.tracker.partial_lights && f.armors.empty() &&
+            robot.updatePartialLight(f.lights, cfg.pose.armor_pitch_deg);
         point.update(f);
 
         // --- direct
@@ -322,6 +324,7 @@ EvalResult evaluate(const Config& cfg, const std::vector<FrameObservations>& obs
         log.frame = f.frame;
         log.stamp = f.stamp;
         log.matched = robot.matched_count;
+        log.partial_match = partial_match;
         {
             const AimCommand c = robot_aimer.aim(robot, f.stamp);
             log.cmd = c;

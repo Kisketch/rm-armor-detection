@@ -164,6 +164,11 @@ std::vector<Light> Detector::findLights(const cv::Mat& bgr, cv::Mat& mask) const
     return lights;
 }
 
+std::vector<Light> Detector::detectLights(const cv::Mat& bgr) const {
+    cv::Mat mask;
+    return findLights(bgr, mask);
+}
+
 bool Detector::containsOtherLight(const Light& a, const Light& b,
                                   const std::vector<Light>& lights) const {
     const std::vector<cv::Point2f> pts{a.top, a.bottom, b.top, b.bottom};

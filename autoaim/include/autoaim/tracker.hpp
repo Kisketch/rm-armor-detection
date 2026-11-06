@@ -42,6 +42,9 @@ public:
     RobotTracker(const TrackerConfig& cfg, const CameraModel& camera);
 
     void update(const FrameObservations& frame);
+    // Image-space correction from one unpaired bar. Never changes identity,
+    // tracking state, or the full-observation loss timer.
+    bool updatePartialLight(const std::vector<Light>& lights, double armor_pitch_deg);
     void reset() { state_ = TrackState::LOST; }
 
     TrackState state() const { return state_; }

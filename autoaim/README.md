@@ -38,6 +38,9 @@ The [2026-11-06 rerun](docs/IMPROVEMENT_LOG_2026-11-06.md) reproduces these
 numbers from fresh detections and adds a 5/10/15 shots/s rate-cap replay.
 The [detector follow-up](docs/IMPROVEMENT_LOG_2026-11-06_DETECTOR.md) fixes the
 light-bar long-axis geometry; full-video virtual-shot metrics remain unchanged.
+Its guarded single-light EKF update is available for offline comparison with
+`--set partial_lights=1`. It is disabled by default because the current two
+recordings show no gain and one fewer virtual hit on video 4.
 The older full comparison video uses `q_yaw=8`; the
 [new aligned 12-second comparison](docs/detections/compare_q3_2026-11-06.mp4)
 uses the current `q_yaw=3, q_r=3e-3` configuration. Rate-cap results are

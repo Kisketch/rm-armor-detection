@@ -78,6 +78,7 @@ struct FrameObservations {
     int frame = 0;
     double stamp = 0.0;  // seconds
     std::vector<ArmorObservation> armors;
+    std::vector<Light> lights;  // optional raw bars for guarded partial observation
 };
 
 inline double wrapAngle(double a) {

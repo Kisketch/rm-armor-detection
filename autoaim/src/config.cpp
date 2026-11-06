@@ -85,6 +85,7 @@ Config Config::load(const std::string& path) {
     get(t, "max_match_yaw_diff", c.tracker.max_match_yaw_diff);
     get(t, "tracking_thres", c.tracker.tracking_thres);
     get(t, "lost_time_thres", c.tracker.lost_time_thres);
+    get(t, "partial_lights", c.tracker.partial_lights);
     get(t, "q_xyz", c.tracker.q_xyz);
     get(t, "q_yaw", c.tracker.q_yaw);
     get(t, "q_r", c.tracker.q_r);
@@ -146,6 +147,7 @@ bool setParam(Config& c, const std::string& key, double v) {
     else if (key == "ca_model") c.tracker.ca_model = v != 0;
     else if (key == "q_acc") c.tracker.q_acc = v;
     else if (key == "max_match_distance") c.tracker.max_match_distance = v;
+    else if (key == "partial_lights") c.tracker.partial_lights = v != 0;
     else if (key == "side_angle") c.aimer.side_angle_deg = v;
     else if (key == "max_fire_facing") c.aimer.max_fire_facing_deg = v;
     else if (key == "center_mode_omega") c.aimer.center_mode_omega = v;
@@ -172,7 +174,8 @@ void Config::save(const std::string& path) const {
     fs << "tracker" << "{"
        << "q_xyz" << tracker.q_xyz << "q_yaw" << tracker.q_yaw << "r_yaw" << tracker.r_yaw
        << "r_yaw_head_on" << tracker.r_yaw_head_on << "pixel_noise" << tracker.pixel_noise
-       << "max_match_distance" << tracker.max_match_distance << "}";
+       << "max_match_distance" << tracker.max_match_distance
+       << "partial_lights" << tracker.partial_lights << "}";
     fs << "aimer" << "{"
        << "latency" << aimer.latency << "side_angle_deg" << aimer.side_angle_deg
        << "center_mode_omega" << aimer.center_mode_omega << "}";

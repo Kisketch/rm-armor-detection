@@ -59,6 +59,7 @@ struct TrackerConfig {
     double max_match_yaw_diff = 1.0;  // rad
     int tracking_thres = 3;           // consecutive matches DETECTING -> TRACKING
     double lost_time_thres = 0.4;     // s in TEMP_LOST before LOST
+    bool partial_lights = false;      // experimental image-space update during TEMP_LOST
     // process noise (continuous white-noise acceleration spectral densities)
     double q_xyz = 4.0;
     double q_yaw = 30.0;

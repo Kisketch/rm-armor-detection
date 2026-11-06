@@ -266,6 +266,57 @@ static void testAimerResetsSelectionAfterLoss() {
           before.armor_k, after.armor_k, expected.armor_k);
 }
 
+static void testPartialLightGuard() {
+    CameraModel camera(CameraConfig{});
+    TrackerConfig cfg;
+    cfg.tracking_thres = 1;
+    RobotTracker tracker(cfg, camera);
+    ArmorObservation observation;
+    observation.position = {4.75, 0, 0};
+    observation.yaw = 0;
+    observation.distance = 4.75;
+    observation.det.number = "3";
+    observation.det.type = ArmorType::SMALL;
+    observation.det.left.length = observation.det.right.length = 28;
+    FrameObservations frame;
+    frame.armors = {observation};
+    tracker.update(frame);
+    frame.stamp = 0.04;
+    tracker.update(frame);
+    CHECK(tracker.state() == TrackState::TRACKING, "full observations should establish tracking");
+    frame.stamp = 0.08;
+    frame.armors.clear();
+    tracker.update(frame);
+    CHECK(tracker.state() == TrackState::TEMP_LOST, "missing plate should enter temporary loss");
+
+    const auto& x = tracker.x();
+    const auto corners = armorCorners(tracker.armorPosition(x, 0), tracker.armorYaw(x, 0),
+                                      15 * kPi / 180, ArmorType::SMALL);
+    const cv::Point2d top = camera.project(corners[1]);
+    const cv::Point2d bottom = camera.project(corners[0]);
+    Light light;
+    light.center = cv::Point2f(static_cast<float>((top.x + bottom.x) * 0.5 + 4),
+                               static_cast<float>((top.y + bottom.y) * 0.5));
+    light.length = static_cast<float>(cv::norm(top - bottom));
+    light.tilt_deg = static_cast<float>(std::atan2(std::abs(top.x - bottom.x),
+                                                   std::abs(top.y - bottom.y)) * 180 / kPi);
+    Light far = light;
+    far.center.x += 30;
+    CHECK(!tracker.updatePartialLight({far}, 15), "distant bar must not update the track");
+    Light ambiguous = light;
+    ambiguous.center.x += 2;
+    CHECK(!tracker.updatePartialLight({light, ambiguous}, 15),
+          "two equally plausible bars must not update the track");
+    CHECK(tracker.updatePartialLight({light}, 15), "unique nearby bar should update the track");
+    Ballistics ball(BallisticConfig{});
+    RobotAimer aimer(AimerConfig{}, ball);
+    CHECK(tracker.state() == TrackState::TEMP_LOST && tracker.matched_count == 0 &&
+          !aimer.aim(tracker, frame.stamp).fire,
+          "partial observation must not restore full tracking or authorize fire");
+    tracker.reset();
+    CHECK(!tracker.updatePartialLight({light}, 15), "partial bar must not initialize a lost target");
+}
+
 int main() {
     testBallistics();
     testLightLongAxis();
@@ -274,6 +325,7 @@ int main() {
     testDetectionCacheParsing();
     testRateLimitedShots();
     testAimerResetsSelectionAfterLoss();
+    testPartialLightGuard();
     if (failures == 0) std::printf("ALL TESTS PASSED\n");
     return failures == 0 ? 0 : 1;
 }

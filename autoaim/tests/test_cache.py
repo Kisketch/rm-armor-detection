@@ -45,6 +45,12 @@ def main() -> None:
 
         assert "detected 12 frames" in run(binary, a, out)
         assert "loaded 12 frames" in run(binary, a, out)
+        metadata = out / "clip_detections.txt.meta.yml"
+        current = metadata.read_text(encoding="utf-8")
+        assert "version: 3" in current
+        metadata.write_text(current.replace("version: 3", "version: 2"), encoding="utf-8")
+        assert "detected 12 frames" in run(binary, a, out)  # old detector geometry
+        assert "loaded 12 frames" in run(binary, a, out)
         assert "detected 12 frames" in run(binary, b, out)  # same stem and length
         assert "loaded 12 frames" in run(binary, b, out)
         assert "detected 12 frames" in run(binary, a, out, "--set", "refine_corners=0")

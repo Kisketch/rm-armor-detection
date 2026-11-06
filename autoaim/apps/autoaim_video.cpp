@@ -53,7 +53,7 @@ std::uint64_t fileHash(const std::string& path) {
 
 std::string cacheSignature(const std::string& video, const DetectorConfig& d) {
     std::ostringstream s;
-    s << std::setprecision(17) << "detector-v2 " << CV_VERSION << ' ' << fileHash(video) << ' '
+    s << std::setprecision(17) << "detector-v3 " << CV_VERSION << ' ' << fileHash(video) << ' '
       << fileHash(d.model_path) << ' ' << fileHash(d.label_path) << ' '
       << static_cast<int>(d.enemy_color) << ' ' << d.channel_diff_threshold << ' '
       << d.min_light_length << ' ' << d.min_light_aspect << ' ' << d.max_light_aspect << ' '
@@ -79,7 +79,7 @@ bool cacheMetadataMatches(const std::string& path, const std::string& signature,
         cv::FileStorage meta(path, cv::FileStorage::READ);
         if (!meta.isOpened() || meta["version"].empty() || meta["signature"].empty() ||
             meta["frames"].empty()) return false;
-        return static_cast<int>(meta["version"]) == 2 &&
+        return static_cast<int>(meta["version"]) == 3 &&
                static_cast<std::string>(meta["signature"]) == signature &&
                static_cast<int>(meta["frames"]) == static_cast<int>(frames);
     } catch (const cv::Exception&) {
@@ -91,7 +91,7 @@ void saveCacheMetadata(const std::string& path, const std::string& signature,
                        std::size_t frames) {
     cv::FileStorage meta(path, cv::FileStorage::WRITE);
     if (!meta.isOpened()) throw std::runtime_error("cannot write cache metadata: " + path);
-    meta << "version" << 2 << "signature" << signature << "frames" << static_cast<int>(frames);
+    meta << "version" << 3 << "signature" << signature << "frames" << static_cast<int>(frames);
 }
 
 std::vector<FrameDetections> runDetector(const std::string& video, const Config& cfg, double& ms_per_frame) {

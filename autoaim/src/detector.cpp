@@ -28,12 +28,20 @@ Light makeLight(const cv::RotatedRect& rect, Color color) {
     l.color = color;
     cv::Point2f p[4];
     rect.points(p);
-    std::sort(p, p + 4, [](const cv::Point2f& a, const cv::Point2f& b) { return a.y < b.y; });
-    l.top = (p[0] + p[1]) * 0.5f;
-    l.bottom = (p[2] + p[3]) * 0.5f;
+    // Follow the rectangle's *long* axis. Sorting all four corners by image y
+    // made a horizontal decoration light look like a short vertical bar: its
+    // computed length was the short side and its tilt became zero.
+    const cv::Point2f e01 = p[1] - p[0];
+    const cv::Point2f e12 = p[2] - p[1];
+    const bool first_long = cv::norm(e01) >= cv::norm(e12);
+    const cv::Point2f axis = first_long ? e01 : e12;
+    const cv::Point2f a = rect.center - axis * 0.5f;
+    const cv::Point2f b = rect.center + axis * 0.5f;
+    l.top = a.y <= b.y ? a : b;
+    l.bottom = a.y <= b.y ? b : a;
     l.center = (l.top + l.bottom) * 0.5f;
     l.length = static_cast<float>(cv::norm(l.top - l.bottom));
-    l.width = static_cast<float>(cv::norm(p[0] - p[1]));
+    l.width = static_cast<float>(cv::norm(first_long ? e12 : e01));
     l.tilt_deg = longAxisTiltDeg(l.top, l.bottom);
     return l;
 }

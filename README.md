@@ -26,6 +26,7 @@ ctest --test-dir autoaim/build --output-on-failure
 
 最新视频审查、改进记录与下一步建议见 [2026-11-05 改进日志](autoaim/docs/IMPROVEMENT_LOG_2026-11-05.md)。
 新版参数的完整复跑、射速约束对照和对齐视频见 [2026-11-06 改进日志](autoaim/docs/IMPROVEMENT_LOG_2026-11-06.md)。
+随后完成的灯条长轴修复、困难片段复核与后续算法方向见 [检测专项日志](autoaim/docs/IMPROVEMENT_LOG_2026-11-06_DETECTOR.md)。
 
 ## 快速开始
 

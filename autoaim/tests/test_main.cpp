@@ -6,9 +6,12 @@
 #include <random>
 #include <utility>
 
+#include <opencv2/imgproc.hpp>
+
 #include "autoaim/ballistics.hpp"
 #include "autoaim/aimer.hpp"
 #include "autoaim/config.hpp"
+#include "autoaim/detector.hpp"
 #include "autoaim/evaluation.hpp"
 #include "autoaim/pose.hpp"
 #include "autoaim/tracker.hpp"
@@ -59,6 +62,40 @@ static void testBallistics() {
             drag.simulate(sol.pitch, s, hh, tt);
             CHECK(std::abs(hh - z) < 1e-3, "solve accuracy s=%f z=%f got %f", s, z, hh);
         }
+}
+
+static void testLightLongAxis() {
+    const cv::RotatedRect vertical({100.f, 100.f}, {6.f, 30.f}, 0.f);
+    const cv::RotatedRect horizontal({100.f, 100.f}, {30.f, 6.f}, 0.f);
+    const Light v = makeLight(vertical, Color::RED);
+    const Light h = makeLight(horizontal, Color::RED);
+    CHECK(std::abs(v.length - 30.f) < 1e-3f && std::abs(v.width - 6.f) < 1e-3f &&
+          v.tilt_deg < 1.f, "vertical long axis should remain vertical");
+    CHECK(std::abs(h.length - 30.f) < 1e-3f && std::abs(h.width - 6.f) < 1e-3f &&
+          h.tilt_deg > 89.f, "horizontal long axis must not masquerade as a vertical light");
+
+    DetectorConfig cfg;
+    Detector detector(cfg);
+    DetectorDebug debug;
+    cv::Mat frame = cv::Mat::zeros(200, 200, CV_8UC3);
+    cv::rectangle(frame, cv::Rect(40, 80, 60, 8), cv::Scalar(0, 0, 255), cv::FILLED);
+    detector.detect(frame, &debug);
+    CHECK(debug.lights.empty(), "horizontal red decoration must be rejected as a light bar");
+    frame.setTo(cv::Scalar(0, 0, 0));
+    cv::rectangle(frame, cv::Rect(80, 40, 8, 60), cv::Scalar(0, 0, 255), cv::FILLED);
+    detector.detect(frame, &debug);
+    CHECK(debug.lights.size() == 1, "vertical red light bar should remain detectable");
+
+    // A bright horizontal mark between two real bars used to be admitted as a
+    // third light, causing containsOtherLight() to discard the whole plate.
+    frame.setTo(cv::Scalar(0, 0, 0));
+    cv::rectangle(frame, cv::Rect(50, 50, 7, 50), cv::Scalar(0, 0, 255), cv::FILLED);
+    cv::rectangle(frame, cv::Rect(100, 50, 7, 50), cv::Scalar(0, 0, 255), cv::FILLED);
+    cv::rectangle(frame, cv::Rect(72, 72, 16, 5), cv::Scalar(0, 0, 255), cv::FILLED);
+    const auto armors = detector.detect(frame, &debug);
+    CHECK(debug.lights.size() == 2 && debug.pairs_before_classify == 1 && armors.size() == 1,
+          "horizontal decoration must not veto a valid two-bar armor (lights=%zu, pairs=%d, armors=%zu)",
+          debug.lights.size(), debug.pairs_before_classify, armors.size());
 }
 
 static void testPose() {
@@ -231,6 +268,7 @@ static void testAimerResetsSelectionAfterLoss() {
 
 int main() {
     testBallistics();
+    testLightLongAxis();
     testPose();
     testTracker();
     testDetectionCacheParsing();

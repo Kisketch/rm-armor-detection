@@ -41,6 +41,8 @@ light-bar long-axis geometry; full-video virtual-shot metrics remain unchanged.
 The [adjacent-plate pairing fix](docs/IMPROVEMENT_LOG_2026-11-06_PAIRING.md)
 classifies candidate pairs before assigning shared light bars. It fixes a
 reproducible close-panel failure; both original videos retain identical detections.
+The [RMUC 2026 target review](docs/RMUC_2026_TARGET_REVIEW.md) maps official
+armor and damage rules to this pipeline and identifies the remaining test gaps.
 Its guarded single-light EKF update is available for offline comparison with
 `--set partial_lights=1`. It is disabled by default because the current two
 recordings show no gain and one fewer virtual hit on video 4.
